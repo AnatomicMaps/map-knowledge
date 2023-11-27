@@ -189,8 +189,11 @@ class KnowledgeStore(KnowledgeBase):
             log.info('Without SCKAN')
         if npo:
             self.__npo_db = NpoSparql()
-            npo_build = f" built at {self.__npo_db.build()['released']}" if log_build else ''
+            builds = self.__npo_db.build()
+            npo_build = f" built at {builds['released']}" if log_build else ''
             log.info(f'With NPO{npo_build}')
+            apinatomy_build = f" path: {builds['path']}, sha: {builds['sha']}, and date: {builds['date']}"
+            log.info(f"With ApiNATOMY{apinatomy_build}")
             self.__npo_entities = list(self.__npo_db.connectivity_paths().keys())
         else:
             self.__npo_db = None

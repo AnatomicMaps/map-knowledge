@@ -45,10 +45,13 @@ NPO_SPARQL_ENDPOINT = 'https://blazegraph.scicrunch.io/blazegraph/sparql'
 NPO_OWNER = "SciCrunch"
 NPO_REPO = "NIF-Ontology"
 NPO_BRANCH = "neurons"
-NPO_DIR = "ttl/generated/neurons"
 NPO_SOURCE = f"https://raw.githubusercontent.com/{NPO_OWNER}/{NPO_REPO}/{NPO_BRANCH}/"
-NPO_PARTIAL_ORDER = "apinat-partial-orders.ttl"
-NPO_PARTIAL_ORDER_URL = f'{NPO_SOURCE}{NPO_DIR}/{NPO_PARTIAL_ORDER}'
+NPO_API = f"https://api.github.com/repos/{NPO_OWNER}/{NPO_REPO}/commits?sha={NPO_BRANCH}"
+NPO_PATH = f"https://github.com/{NPO_OWNER}/{NPO_REPO}/blob/{NPO_BRANCH}/"
+NPO_PARTIAL_ORDER = "ttl/generated/neurons/apinat-partial-orders.ttl"
+NPO_PARTIAL_ORDER_URL = f"{NPO_SOURCE}{NPO_PARTIAL_ORDER}"
+NPO_PARTIAL_ORDER_API = f"{NPO_API}&path={NPO_PARTIAL_ORDER}"
+NPO_PARTIAL_ORDER_PATH = f"{NPO_PATH}{NPO_PARTIAL_ORDER}"
 
 #===============================================================================
 
@@ -345,6 +348,18 @@ class NpoSparql:
     def __db_version(self):
         return self.__result_as_dict(self.query(DB_VERSION))
 
+    def __apinatomy_build(self):
+        response = requests.get(NPO_PARTIAL_ORDER_API, timeout=10)
+        if response.status_code == 200:
+            if len(rs_list:=response.json()) > 0:
+                rs_json = rs_list[0]
+                return {
+                    'sha': rs_json.get('sha', ''),
+                    'date': rs_json.get('commit', {}).get('committer', {}).get('date', ''),
+                    'path': NPO_PARTIAL_ORDER_PATH
+                }
+        return {}
+
     def get_knowledge(self, entity) -> dict:
         knowledge = {
             'id': entity
@@ -500,8 +515,8 @@ class NpoSparql:
         return self.__connectivity_paths
 
     def build(self):
-        return {
-            'released': self.__db_version()['versionDate'],
-        }
+        builds = self.__apinatomy_build()
+        builds['released'] = self.__db_version()['versionDate']
+        return builds
 
 #===============================================================================
