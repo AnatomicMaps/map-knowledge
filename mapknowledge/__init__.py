@@ -138,7 +138,7 @@ class KnowledgeBase(object):
                         raise ValueError(f'Knowledge base schema requires an upgrade but opened read only...')
                     while schema_version != SCHEMA_VERSION:
                         if (upgrade := SCHEMA_UPGRADES.get(schema_version)) is None:
-                            raise ValueError(f'Unable to upgrade knowledge base schema from {schema_version} to version {upgrade[0]}')
+                            raise ValueError(f'Unable to upgrade knowledge base schema from {schema_version}')
                         log.info(f'Upgrading knowledge base schema from {schema_version} to version {upgrade[0]}')
                         schema_version = upgrade[0]
                         self.__db.executescript(upgrade[1])
