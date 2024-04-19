@@ -679,14 +679,14 @@ class Apinatomy:
     #========================================================
         phenotypes: list[str] = []
         metadata: dict[str, str | list[str]] = {
-            'taxon': 'NCBITaxon:40674'      # Default to Mammalia
+            'taxons': ['NCBITaxon:40674']   # Default to Mammalia
         }
         for edge in data['edges']:
             predicate = edge.get('pred')
             if predicate in PHENOTYPE_PREDICATES:
                 phenotypes.append(edge.get('obj'))
             elif predicate == TAXON_PREDICATE:
-                metadata['taxon'] = edge.get('obj')
+                metadata['taxons'] = edge.get('obj').split(',')
         metadata['phenotypes'] = phenotypes
         return metadata
 

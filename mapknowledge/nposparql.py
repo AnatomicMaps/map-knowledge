@@ -387,9 +387,9 @@ class NpoSparql:
         if 'Phenotype' in metadata:
             knowledge['phenotypes'] = [NAMESPACES.curie(p) for p in metadata['Phenotype'].split(',')]
         if 'ObservedIn' in metadata:
-            knowledge['taxon'] = metadata['ObservedIn']
+            knowledge['taxons'] = metadata['ObservedIn'].split(',')
         else:
-            knowledge['taxon'] = 'NCBITaxon:40674'      # Default to Mammalia
+            knowledge['taxons'] = ['NCBITaxon:40674']   # Default to Mammalia
         if 'Sex' in metadata:
             knowledge['biologicalSex'] = metadata['Sex']
         connectivity = []
