@@ -350,6 +350,10 @@ class NpoSparql:
         return self.__result_as_dict(self.query(DB_VERSION))
 
     def __apinatomy_build(self):
+        if self.__npo_partial_order_file is not None:
+            return {
+                'path': self.__npo_partial_order_file
+            }
         response = requests.get(NPO_PARTIAL_ORDER_API, timeout=10)
         if response.status_code == 200:
             if len(rs_list:=response.json()) > 0:

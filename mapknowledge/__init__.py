@@ -198,7 +198,8 @@ class KnowledgeStore(KnowledgeBase):
                 builds = self.__npo_db.build()
                 log.info(f"With NPO build {builds['released']}")
                 log.info(f"ApiNATOMY source: {builds['path']}")
-                log.info(f"ApiNATOMY built: {builds['date']}, SHA: {builds['sha']}")
+                if 'sha' in builds:
+                    log.info(f"ApiNATOMY built: {builds['date']}, SHA: {builds['sha']}")
         else:
             self.__npo_db = None
             log.info('Without NPO')
