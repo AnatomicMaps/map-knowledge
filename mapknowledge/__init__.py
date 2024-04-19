@@ -40,6 +40,9 @@ from .utils import log                  # type: ignore
 
 KNOWLEDGE_BASE = 'knowledgebase.db'
 
+PARTIAL_ORDER_FILE = os.path.join(os.path.dirname(__file__),
+                                  './sckan-data/apinat-partial-orders.ttl')
+
 #===============================================================================
 
 SCHEMA_VERSION = '1.2'
@@ -188,7 +191,7 @@ class KnowledgeStore(KnowledgeBase):
             self.__scicrunch = None
             log.info('Without SCKAN')
         if npo:
-            self.__npo_db = NpoSparql()
+            self.__npo_db = NpoSparql(PARTIAL_ORDER_FILE)
             self.__npo_entities = set(self.__npo_db.connectivity_paths().keys())
             self.__npo_entities.update(self.__npo_db.connectivity_models().keys())
             if log_build:
