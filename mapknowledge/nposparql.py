@@ -294,7 +294,8 @@ def is_node(curie: str) -> bool:
 class NpoSparql:
     def __init__(self, partial_order_file=None):
         self.__sparql = SPARQLWrapper2(NPO_SPARQL_ENDPOINT)
-        self.__load_apinatomy_connectivities(partial_order_file) # load from file due to incompleteness in NPO
+        self.__npo_partial_order_file = partial_order_file
+        self.__load_apinatomy_connectivities() # load from file due to incompleteness in NPO
         self.__load_connectivity_paths() # get all connectivity paths promptly
 
     def query(self, sparql) -> list[dict]:
@@ -403,16 +404,18 @@ class NpoSparql:
             knowledge['connectivity'] = self.__apinat_connectivities.get(entity, [])
         return knowledge
 
-    def __load_apinatomy_connectivities(self, partial_order_file=None):
-        if partial_order_file is None:
+    def __load_apinatomy_connectivities(self):
+        if self.__npo_partial_order_file is not None:
+            with open(self.__npo_partial_order_file) as f:
+                partial_order_text = f.read()
+        else:
             # loading partial connectivities from NPO repository
             # due to unvailability in stardog
             response = requests.get(NPO_PARTIAL_ORDER_URL, timeout=10)
             if response.status_code == 200:
                 partial_order_text = response.text
-        else:
-            with open(partial_order_file) as f:
-                return f.read()
+            else:
+                return
 
         # functions to parse connectivities
         def parse_connectivities(connectivities, sub_structure, root: str|tuple="blank"):
