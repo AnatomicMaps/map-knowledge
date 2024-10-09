@@ -10,13 +10,12 @@ if __name__ == '__main__':
     import logging
     logging.basicConfig(level=logging.INFO)
 
-    store = KnowledgeStore(npo=True, log_provenance=True, sckan_release='sckan-2024-03-26', scicrunch_api=None)
-    if store.npo:
-        pprint(store.sckan_provenance)
-        print('NPO models:')
-        pprint(store.npo.connectivity_models())
-        print('NPO paths:')
-        pprint(store.npo.connectivity_paths())
+    store = KnowledgeStore(sckan_version='sckan-2024-03-26')
+    pprint(store.sckan_provenance)
+    print('NPO models:')
+    pprint(store.connectivity_models())
+    print('NPO paths:')
+    pprint(store.connectivity_paths())
     print_knowledge(store, 'ilxtr:NeuronKblad')
     print_knowledge(store, 'ilxtr:neuron-type-keast-8')
     print_knowledge(store, 'ilxtr:sparc-nlp/mmset1/3a')

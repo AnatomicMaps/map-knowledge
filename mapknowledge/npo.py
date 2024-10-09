@@ -22,6 +22,7 @@ import os
 import logging
 import tempfile
 from typing import Any, Optional
+import networkx as nx
 
 #===============================================================================
 
@@ -135,7 +136,8 @@ def for_composer(n, cull=False) -> dict[str, Any]:
             [dict(loc=l, type='AXON-T') for l in lpes(n, ilxtr.hasAxonPresynapticElementIn)] +
             # XXX I strongly reccoment renaming this to SENSORY-T so that the
             # short forms are harder to confuse A-T and S-T
-            [dict(loc=l, type='AFFERENT-T') for l in lpes(n, ilxtr.hasAxonSensorySubcellularElementIn)]
+            [dict(loc=l, type='AFFERENT-T') for l in lpes(n, ilxtr.hasAxonSensorySubcellularElementIn)] +
+            [dict(loc=l, type='AFFERENT-T') for l in lpes(n, ilxtr.hasAxonLeadingToSensorySubcellularElementIn)]
         ),
         order = tuple(simplify_nested(simplify, _po)) if _po else [],
         path = (  # TODO pull ordering from partial orders (not implemented in core atm)
@@ -275,6 +277,11 @@ def load_knowledge_from_ttl(npo_release: str) -> tuple:
         neuron['connectivity'] = get_connectivity_edges(neuron['order'])
         neuron['class'] = f'ilxtr:{type(n).__name__}'
         neuron['terms-dict'] = {NAMESPACES.curie(str(p.p)):str(p.pLabel) for p in n}
+        neuron['terms-dict'][neuron['id']] = neuron['label']
+        if neuron['connectivity']:
+            neuron['is-connected'] = nx.is_connected(nx.Graph(neuron['connectivity']))
+        else:
+            neuron['is-connected'] = False
         neuron_terms = {**neuron_terms, **neuron['terms-dict']}
         neuron_knowledge[neuron['id']] = neuron
 
@@ -320,11 +327,14 @@ class Npo:
 
     def connectivity_models(self) -> list[str]:
     #==========================================
-        return [v['class'] for v in self.__npo_knowledge.values()]
+        return list({v['class'] for v in self.__npo_knowledge.values()})
     
-    def connectivity_paths(self) -> list[str]:
+    def connectivity_paths(self, connected_only = True) -> list[str]:
     #=========================================
-        return list(self.__npo_knowledge.keys())
+        if connected_only:
+            return list(path for path, knowledge in self.__npo_knowledge.items() if knowledge['is-connected'])
+        else:
+            return list(path for path in self.__npo_knowledge.keys())
 
     def build(self) -> dict[str, str]:
     #=================================
@@ -375,7 +385,21 @@ class Npo:
             knowledge['axons'] = list(set(axons))
             if len(references:=path_kn['provenance']) > 0:
                 knowledge['references'] = references
+            knowledge['is-connected'] = path_kn.get('is-connected', False)
 
         return knowledge
 
+    def extracted_knowledge(self):
+    #==========================================
+        source = f'{self.__npo_release}-npo'
+        npo_knowledge = {
+            'source': source,
+            'knowledge': []
+        }
+        for term in self.__npo_terms:
+            term_knowledge = self.get_knowledge(term)
+            term_knowledge['source'] = f'{self.__npo_release}-npo'
+            npo_knowledge['knowledge'].append(term_knowledge)
+
+        return npo_knowledge
 #===============================================================================

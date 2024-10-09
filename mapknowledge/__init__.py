@@ -279,7 +279,7 @@ class KnowledgeStore(KnowledgeBase):
     def connectivity_models(self) -> list[str]:
     #==========================================
         """
-        Get URIs of connectivity models held in thr NPO knowledge source.
+        Get URIs of connectivity models held in the NPO knowledge source.
 
         :returns:   A list of model URIs
         """
@@ -291,17 +291,17 @@ class KnowledgeStore(KnowledgeBase):
             log.warning('NPO connectivity models requested but no connection to NPO service')
         return []
 
-    def connectivity_paths(self) -> list[str]:
+    def connectivity_paths(self, connected_only=True) -> list[str]:
     #=========================================
         """
-        Get URIs of connectivity paths held in thr NPO knowledge source.
+        Get URIs of connectivity paths held in the NPO knowledge source.
 
         :returns:   A list of path URIs
         """
         if self.__npo_db is not None:
             # Future: need to warn when NPO has been updated and make sure user
             #         clears the cache...
-            return self.__npo_db.connectivity_paths()
+            return self.__npo_db.connectivity_paths(connected_only)
         else:
             log.warning('NPO connectivity paths requested but no connection to NPO service')
         return []
@@ -429,5 +429,18 @@ class KnowledgeStore(KnowledgeBase):
                 self.db.executemany('insert into publications(source, entity, publication) values (?, ?, ?)',
                     ((self.__source, entity, reference) for reference in references))
 
-#===============================================================================
+    def extract_knowledge(self) -> dict:
+        """
+        Get JSON knowledge of terms in the NPO knowledge source.
 
+        :returns:   A ditionary of terms
+        """
+        if self.__npo_db is not None:
+            # Future: need to warn when NPO has been updated and make sure user
+            #         clears the cache...
+            return self.__npo_db.extracted_knowledge()
+        else:
+            log.warning('NPO knowledge terms requested but no connection to NPO service')
+        return dict()
+
+#===============================================================================

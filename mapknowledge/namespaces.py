@@ -27,6 +27,7 @@ class NAMESPACES:
         'apinatomy': 'https://apinatomy.org/uris/readable/',
         'ilxtr': 'http://uri.interlex.org/tgbugs/uris/readable/',
         'ilx': 'http://uri.interlex.org/',   # More general need to be ordered later
+        'CL': 'http://purl.obolibrary.org/obo/CL_',
     }
 
     @staticmethod
