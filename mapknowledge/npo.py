@@ -25,6 +25,7 @@ from typing import Any, Optional
 import networkx as nx
 import urllib.parse
 from collections import defaultdict
+import itertools
 
 #===============================================================================
 
@@ -41,6 +42,7 @@ logging.disable(logging.CRITICAL+1)
 from neurondm.core import Config, graphBase, NegPhenotype
 from neurondm.core import OntTerm, OntId, RDFL
 from neurondm import orders
+from neurondm.core import IntersectionOf
 
 from pyontutils.core import OntGraph, OntResIri
 from pyontutils.namespaces import rdfs, ilxtr
@@ -74,7 +76,8 @@ NPO_GIT = f'https://github.com/{NPO_OWNER}/{NPO_REPO}'
 NPO_TTLS = ('apinat-partial-orders',
             'apinat-pops-more',
             'apinat-simple-sheet',
-            'sparc-nlp')
+            'sparc-nlp',
+            'apinat-complex')
 
 GEN_NEURONS_PATH = 'ttl/generated/neurons/'
 TURTLE_SUFFIX = '.ttl'
@@ -120,6 +123,12 @@ NPO_TERM_LABELS = f"""
 
 #===============================================================================
 
+EXCLUDED_PREFIXES = [
+    'http://uri.interlex.org/tgbugs/uris/readable/apinat-simple/'
+]
+
+#===============================================================================
+
 type KnowledgeDict = dict[str, Any]
 
 #===============================================================================
@@ -138,8 +147,11 @@ def makelpesrdf() -> tuple:
     def lpes(neuron, predicate):
         """ get predicates from python bags """
         # TODO could add expected cardinality here if needed
-        return [NAMESPACES.curie(str(o)) for o in neuron.getObjects(predicate)
-                if not collect.append((predicate, o))]
+        return [
+            tuple(NAMESPACES.curie(str(m)) for m in o.members()) if isinstance(o, IntersectionOf) else tuple([NAMESPACES.curie(str(o))])
+            for o in neuron.getObjects(predicate)
+            if not collect.append((predicate, o))
+        ]
 
     def lrdf(neuron, predicate):
         """ get predicates from graph """
@@ -175,7 +187,7 @@ def for_composer(n, cull=False) -> dict[str, Any]:
     fc = dict(
         id = NAMESPACES.curie(str(n.id_)),
         label = str(n.origLabel),
-        origin = [l for l in lpes(n, ilxtr.hasSomaLocatedIn)],
+        origin = lpes(n, ilxtr.hasSomaLocatedIn),
         dest = (
             # XXX looking at this there seems to be a fault assumption that
             # there is only a single destination type per statement, this is
@@ -194,18 +206,18 @@ def for_composer(n, cull=False) -> dict[str, Any]:
         ),
         #laterality = lpes(n, ilxtr.hasLaterality),  # left/rigth tricky ?
         #projection_laterality = lpes(n, ilxtr.???),  # axon located in contra ?
-        species =            [l for l in lpes(n, ilxtr.hasInstanceInTaxon)],
+        species =            [l[0] for l in lpes(n, ilxtr.hasInstanceInTaxon)],
         sex =                [NAMESPACES.curie(str(p.p)) for p in n if not isinstance(p, NegPhenotype) and p.e==ilxtr.hasBiologicalSex and not collect.append((ilxtr.hasBiologicalSex , p.p))],
         neg_sex =            [NAMESPACES.curie(str(p.p)) for p in n if isinstance(p, NegPhenotype) and p.e==ilxtr.hasBiologicalSex and not collect.append((ilxtr.hasBiologicalSex , p.p))],
-        circuit_type =       lpes(n, ilxtr.hasCircuitRolePhenotype),
-        phenotype =          [l for l in lpes(n, ilxtr.hasAnatomicalSystemPhenotype)],  # current meaning of composer phenotype
-        anatomical_system =  [l for l in lpes(n, ilxtr.hasAnatomicalSystemPhenotype)],
+        circuit_type =       [l[0] for l in lpes(n, ilxtr.hasCircuitRolePhenotype)],
+        phenotype =          [l[0] for l in lpes(n, ilxtr.hasAnatomicalSystemPhenotype)],  # current meaning of composer phenotype
+        anatomical_system =  [l[0] for l in lpes(n, ilxtr.hasAnatomicalSystemPhenotype)],
         # there are a number of dimensions that we aren't converting right now
         dont_know_fcrp =     lpes(n, ilxtr.hasFunctionalCircuitRolePhenotype),
-        other_phenotype = (  lpes(n, ilxtr.hasPhenotype)
-                           + lpes(n, ilxtr.hasMolecularPhenotype)
-                           + lpes(n, ilxtr.hasProjectionPhenotype)),
-        forward_connections = lpes(n, ilxtr.hasForwardConnectionPhenotype),
+        other_phenotype =    [l[0] for l in lpes(n, ilxtr.hasPhenotype)]
+                           + [l[0] for l in lpes(n, ilxtr.hasMolecularPhenotype)]
+                           + [l[0] for l in lpes(n, ilxtr.hasProjectionPhenotype)],
+        forward_connections = [fc[0] for fc in lpes(n, ilxtr.hasForwardConnectionPhenotype)],
         node_phenotypes = {NAMESPACES.curie(str(pn)): lpes(n, pn) for pn in NODE_PHENOTYPES},
 
         # direct references from individual individual neurons
@@ -222,7 +234,7 @@ def for_composer(n, cull=False) -> dict[str, Any]:
 
         # for _ignore, hasClassificationPhenotype is used for ApiNATOMY
         # unlikely to be encountered for real neurons any time soon
-        _ignore = [l for l in lpes(n, ilxtr.hasClassificationPhenotype)],  # used to ensure we account for all phenotypes
+        _ignore = [l[0] for l in lpes(n, ilxtr.hasClassificationPhenotype)],  # used to ensure we account for all phenotypes
     )
     npo = set((p.e, p.p) for p in n.pes)
     cpo = set(collect)
@@ -378,8 +390,11 @@ class Npo:
         OntTerm.query._services = (RDFL(self.__rdf_graph, OntId),)
         for f in NPO_TTLS:
             ori = OntResIri(f'{NPO_RAW}/{self.__npo_release}/{GEN_NEURONS_PATH}{f}{TURTLE_SUFFIX}')
-            if ori.graph is not None:
-                [self.__rdf_graph.add(t) for t in ori.graph]
+            try:
+                if ori.graph is not None:
+                    [self.__rdf_graph.add(t) for t in ori.graph]
+            except:
+                log.warning(f'Could not fetch {ori.iri} from {self.__npo_release}.')
 
         for f in ('apinatomy-neuron-populations', '../../npo', '../../sparc-community-terms'):
             p = urllib.parse.quote(GEN_NEURONS_PATH + f)
@@ -397,9 +412,10 @@ class Npo:
         config.load_existing(self.__rdf_graph)
 
         for neuron in config.neurons():
-            composer_neuron = for_composer(neuron)
-            composer_neuron['class'] = type(neuron).__name__
-            self.__composer_neurons[composer_neuron['id']] = composer_neuron
+            if not any(neuron.id_.startswith(prefix) for prefix in EXCLUDED_PREFIXES):
+                composer_neuron = for_composer(neuron)
+                composer_neuron['class'] = type(neuron).__name__
+                self.__composer_neurons[composer_neuron['id']] = composer_neuron
 
     def __load_anatomical_types(self):
     #=================================
@@ -492,6 +508,14 @@ class Npo:
             knowledge['references'] = []
 
         # check if entity is a connectivity path
+        def get_nodes(target_nodes, nodes):
+            return list({
+                tuple(node)
+                for a in target_nodes
+                if (n_id:=frozenset(a)) in nodes
+                for node in nodes[n_id]
+            })
+
         if (path_kn:=self.__get_neuron_knowledge(entity)) is not None:
             if 'label' not in knowledge:
                 knowledge['label'] = path_kn['label']
@@ -507,64 +531,41 @@ class Npo:
                 knowledge['biologicalSex'] = sex[0]
             if len(alert:=path_kn['note_alert']) > 0:
                 knowledge['alert'] = alert
-            nodes = {}
-            for c in path_kn['connectivity']:           ### What is this for ???
-                nodes[tuple([c[0][0]] + list(c[0][1]))] = c[0]
-                nodes[tuple([c[1][0]] + list(c[1][1]))] = c[1]
-            c_dendrites = {d['loc']: [c for c in nodes if d['loc'] in c]
-                            for d in path_kn['path']
-                                if d['type'] == 'DENDRITE'}
-            dendrites = [nodes[c]
-                            for cd_list in c_dendrites.values()
-                                for c in cd_list]
-            knowledge['dendrites'] = list(set(dendrites))
-            c_axons = {**{a['loc']:[c for c in nodes if a['loc'] in c]
-                            for a in path_kn['path'] if a['type'] == 'AXON'},
-                       **{a['loc']:[c for c in nodes if a['loc'] in c]
-                            for a in path_kn['dest']}}
-            axons = [nodes[c]
-                        for cd_list in c_axons.values()
-                            for c in cd_list]
-            knowledge['axons'] = list(set(axons))
-            c_somas = {s: [c for c in nodes if s in c]
-                        for s in path_kn['origin']}
-            somas = [nodes[c]
-                        for cd_list in c_somas.values()
-                            for c in cd_list]
-            knowledge['somas'] = list(set(somas))
             if len(references:=path_kn['provenance']) > 0:
                 knowledge['references'] = references
             knowledge['pathDisconnected'] = not path_kn.get('connected', False)
-            c_axon_terminal = [[c for c in nodes if a['loc'] in c]
-                                for a in path_kn['dest']
-                                    if a['type'] == 'AXON-T']
-            knowledge['axon-terminals'] = [nodes[c]
-                                            for cd_list in c_axon_terminal
-                                                for c in cd_list]
-            c_afferent_terminal = [[c for c in nodes if a['loc'] in c]
-                                        for a in path_kn['dest']
-                                            if a['type'] == 'AFFERENT-T']
-            knowledge['afferent-terminals'] = [nodes[c]
-                                                for cd_list in c_afferent_terminal
-                                                    for c in cd_list]
-            c_axon_location = [[c for c in nodes if a['loc'] in c]
-                                    for a in path_kn['path']
-                                        if a['type'] == 'AXON']
-            knowledge['axon-locations'] = [nodes[c]
-                                            for cd_list in c_axon_location
-                                                for c in cd_list]
             knowledge['forward-connections'] = path_kn['forward_connections']
-            node_phenotypes = defaultdict(list)
-            for pn, locs in path_kn['node_phenotypes'].items():
-                c_phenotypes = [[c for c in nodes for loc in locs if loc in c]]   ## list inside list??
-                node_phenotypes[pn] += [nodes[c]
-                                            for cd_list in c_phenotypes
-                                                for c in cd_list]
-            knowledge['node-phenotypes'] = dict(node_phenotypes)
-            knowledge['nerves'] = [nodes[node]
-                                    for node in nodes
-                                        if any(self.__npo_terms.get(rdflib.URIRef(NAMESPACES.uri(term)), {}).get('type') == NERVE_TYPE
-                                            for term in node)]
+            all_nodes = {n for edge in path_kn['connectivity'] for n in edge}
+            node_coverage = defaultdict(list)       # (A, B) → [(A, (B)), (A, (B, C)), (A, (B, C, ...))]
+            for node in all_nodes:
+                n_id = [node[0], *node[1]]
+                for r in range(1, len(n_id) + 1):
+                    for comb in itertools.combinations(n_id, r):
+                        node_coverage[frozenset(comb)].append(node)
+            knowledge['dendrites'] = get_nodes([d['loc'] for d in path_kn['path']
+                                                if d['type'] == 'DENDRITE'], node_coverage)
+            knowledge['axons'] = get_nodes([a['loc'] for a in path_kn['path']
+                                            if a['type'] == 'AXON'] +
+                                            [a['loc'] for a in path_kn['dest']], node_coverage)
+            knowledge['somas'] = get_nodes(path_kn['origin'], node_coverage)
+            knowledge['axon-terminals'] = get_nodes([a['loc'] for a in path_kn['dest']
+                                                     if a['type'] == 'AXON-T'], node_coverage)
+            knowledge['afferent-terminals'] = get_nodes([a['loc'] for a in path_kn['dest']
+                                                         if a['type'] == 'AFFERENT-T'], node_coverage)
+            knowledge['axon-locations'] = get_nodes([a['loc'] for a in path_kn['path']
+                                                     if a['type'] == 'AXON'], node_coverage)
+            knowledge['node-phenotypes'] = {
+                pn: get_nodes(locs, node_coverage)
+                for pn, locs in path_kn['node_phenotypes'].items()
+            }
+            knowledge['nerves'] = [
+                node
+                for node in all_nodes
+                if any(
+                    self.__npo_terms.get(rdflib.URIRef(NAMESPACES.uri(t)), {}).get('type') == NERVE_TYPE
+                    for t in [node[0], *node[1]]
+                )
+            ]
         return knowledge
 
 #===============================================================================

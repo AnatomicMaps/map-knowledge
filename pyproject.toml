@@ -13,8 +13,8 @@ dependencies = [
     "requests>=2.28.1",
     "rdflib>=7.1.4",
     "sparqlwrapper>=2.0.0",
-    "neurondm @ https://github.com/tgbugs/pyontutils/releases/download/neurondm-0.1.8/neurondm-0.1.8-py2.py3-none-any.whl",
-    "pyontutils @ https://github.com/tgbugs/pyontutils/releases/download/0.1.38/pyontutils-0.1.38-py2.py3-none-any.whl",
+    "neurondm (==0.1.9)",
+    "pyontutils (==0.1.39)",
     "structlog>=24.4.0",
     "psycopg[binary,pool]>=3.2.9",
 ]
