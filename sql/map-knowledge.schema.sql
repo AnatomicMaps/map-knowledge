@@ -157,6 +157,15 @@ CREATE TABLE public.taxons (
 );
 ALTER TABLE public.taxons OWNER TO abi;
 
+CREATE TABLE public.path_node_mappings (
+    source_id character varying NOT NULL,
+    path_id character varying NOT NULL,
+    node_id character varying NOT NULL,
+    sckan_id character varying,
+    sckan_node_id character varying
+);
+ALTER TABLE public.path_node_mappings OWNER TO abi;
+
 --------------------------------------------------------------
 
 ALTER TABLE ONLY public.anatomical_types
@@ -286,5 +295,18 @@ ALTER TABLE ONLY public.feature_types
     ADD CONSTRAINT feature_constraint FOREIGN KEY (source_id, term_id) REFERENCES public.feature_terms(source_id, term_id);
 ALTER TABLE ONLY public.feature_types
     ADD CONSTRAINT type_constraint FOREIGN KEY (type_id) REFERENCES public.anatomical_types(type_id);
+
+ALTER TABLE ONLY public.path_node_mappings
+    ADD CONSTRAINT source_constraint FOREIGN KEY (source_id) REFERENCES public.knowledge_sources(source_id);
+ALTER TABLE ONLY public.path_node_mappings
+    ADD CONSTRAINT path_constraint FOREIGN KEY (source_id, path_id) REFERENCES public.feature_terms(source_id, term_id);
+ALTER TABLE ONLY public.path_node_mappings
+    ADD CONSTRAINT node_constraint FOREIGN KEY (source_id, path_id, node_id) REFERENCES public.path_nodes(source_id, path_id, node_id);
+ALTER TABLE ONLY public.path_node_mappings
+    ADD CONSTRAINT sckan_constraint FOREIGN KEY (sckan_id) REFERENCES public.knowledge_sources(source_id);
+ALTER TABLE ONLY public.path_node_mappings
+    ADD CONSTRAINT sckan_path_constraint FOREIGN KEY (sckan_id, path_id) REFERENCES public.feature_terms(source_id, term_id);
+ALTER TABLE ONLY public.path_node_mappings
+    ADD CONSTRAINT sckan_node_constraint FOREIGN KEY (sckan_id, path_id, node_id) REFERENCES public.path_nodes(source_id, path_id, node_id);
 
 --------------------------------------------------------------
