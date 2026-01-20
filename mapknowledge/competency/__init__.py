@@ -133,6 +133,7 @@ class CompetencyDatabase:
         cursor.execute('DELETE FROM path_node_types WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM path_phenotypes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM path_properties WHERE source_id=%s', (source_id, ))
+        cursor.execute('DELETE FROM path_node_mappings WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM path_nodes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_types WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_terms WHERE source_id=%s', (source_id, ))
@@ -230,6 +231,12 @@ class CompetencyDatabase:
                     # General path properties
                     cursor.execute('INSERT INTO path_properties (source_id, path_id, biological_sex, alert, disconnected) VALUES (%s, %s, %s, %s, %s)',
                                        (source_id, path_id, record.get('biologicalSex'), record.get('alert'), record.get('pathDisconnected', False)))
+
+                    # Node mappings
+                    node_mappings = [ (source_id, path_id, json.dumps(node), knowledge.source.sckan_id, json.dumps(sckan_node))
+                                            for (node, sckan_node) in record.get('node-mappings', []) ]
+                    cursor.executemany('INSERT INTO path_node_mappings (source_id, path_id, node_id, sckan_id, sckan_node_id) VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING',
+                                        node_mappings)
 
             if progress_bar is not None:
                 progress_bar.update(1)
