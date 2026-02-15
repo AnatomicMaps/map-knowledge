@@ -479,7 +479,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "networkx", specifier = ">=3.3" },
-    { name = "neurondm", specifier = "==0.1.9" },
+    { name = "neurondm", specifier = "==0.1.10" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.9" },
     { name = "pyontutils", specifier = "==0.1.39" },
     { name = "rdflib", specifier = ">=7.1.4" },
@@ -517,15 +517,15 @@ wheels = [
 
 [[package]]
 name = "neurondm"
-version = "0.1.9"
+version = "0.1.10"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "hyputils" },
     { name = "pyontutils" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/20/1d/c79fd768fdb18dde24a84876bebe9623d96680692c300aea8b9c3a1e7653/neurondm-0.1.9.tar.gz", hash = "sha256:960af602c26c5238670b6a938fb4d08e629d9c070d7f50bf48ea1ae109c26222", size = 201964 }
+sdist = { url = "https://files.pythonhosted.org/packages/0b/6c/62ee0a7f933851835da58300bbfb9dec70e0f903d0eaa0ad0a0500a0dfd0/neurondm-0.1.10.tar.gz", hash = "sha256:59e543074e62ef3d48e1efe3691701650420fde865869c454e4acaef321a83a9", size = 207289 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/21/6f/fd5ad2c6677c518e55332ad7bca599ff5f6f0ebebdf823de5859cf3ca4fd/neurondm-0.1.9-py2.py3-none-any.whl", hash = "sha256:d76bd0600939b59cdd9d992b49ad3c1e9f2c0a992d0d5964f9025c72fc55a016", size = 177576 },
+    { url = "https://files.pythonhosted.org/packages/9d/3b/46c0b2bbb4cb10ec0fb1d9f55dd99b181bfb699293a25bd7a23c4814cf08/neurondm-0.1.10-py2.py3-none-any.whl", hash = "sha256:d2a7c5d04f01b22b87f44846f0e4ba8e8cc9c2c2c8bcf1d7785bc4e1f13e46d8", size = 183057 },
 ]
 
 [[package]]
