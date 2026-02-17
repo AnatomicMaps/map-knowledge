@@ -244,11 +244,14 @@ def for_composer(n, cull=False) -> dict[str, Any]:
                            + [l[0] for l in lpes(n, ilxtr.hasProjectionPhenotype)],
         forward_connections = [fc[0] for fc in lpes(n, ilxtr.hasForwardConnectionPhenotype)],
         node_phenotypes = {NAMESPACES.curie(str(pn)): lpes(n, pn) for pn in NODE_PHENOTYPES},
+        member_of_circuits = [l[0] for l in lpes(n, ilxtr.isMemberOfCircuit)],
 
         # direct references from individual individual neurons
         provenance =      lrdf(n, ilxtr.literatureCitation),
         sentence_number = lrdf(n, ilxtr.sentenceNumber),
         note_alert =      lrdf(n, ilxtr.alertNote),
+        expert_consultants = lrdf(n, ilxtr.expertConsultant),
+        curator_note =       lrdf(n, ilxtr.curatorNote),
         # XXX provenance from ApiNATOMY models as a whole is not ingested
         # right now because composer lacks support for 1:n from neuron to
         # prov, (or rather lacks prov collections) and because it attaches
@@ -584,6 +587,12 @@ class Npo:
                 knowledge['alert'] = alert
             if len(references:=path_kn['provenance']) > 0:
                 knowledge['references'] = references
+            if len(expert_consultants:=path_kn['expert_consultants']) > 0:
+                knowledge['expert-consultants'] = expert_consultants
+            if len(curator_note:=path_kn['curator_note']) > 0:
+                knowledge['curator-note'] = curator_note
+            if len(member_of_circuits:=path_kn['member_of_circuits']) > 0:
+                knowledge['member-of-circuits'] = member_of_circuits
             knowledge['pathDisconnected'] = not path_kn.get('connected', False)
             knowledge['forward-connections'] = path_kn['forward_connections']
             all_nodes = {n for edge in path_kn['connectivity'] for n in edge}
