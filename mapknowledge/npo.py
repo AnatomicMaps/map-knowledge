@@ -45,7 +45,7 @@ from neurondm import orders
 from neurondm.core import IntersectionOf
 
 from pyontutils.core import OntGraph, OntResIri
-from pyontutils.namespaces import rdfs, ilxtr
+from pyontutils.namespaces import rdfs, ilxtr, skos
 
 # Renable general logging
 logging.disable(logging.NOTSET)
@@ -211,6 +211,7 @@ def for_composer(n, cull=False) -> dict[str, Any]:
     fc = dict(
         id = NAMESPACES.curie(str(n.id_)),
         label = str(n.origLabel),
+        long_label = str(pref_labels[0]) if (pref_labels:=lrdf(n, skos.prefLabel)) else str(n.origLabel),
         origin = lpes(n, ilxtr.hasSomaLocatedIn),
         dest = (
             # XXX looking at this there seems to be a fault assumption that
@@ -569,7 +570,7 @@ class Npo:
         if (path_kn:=self.__get_neuron_knowledge(entity)) is not None:
             if 'label' not in knowledge:
                 knowledge['label'] = path_kn['label']
-            knowledge['long-label'] = path_kn['label']
+            knowledge['long-label'] = path_kn['long_label']
             knowledge['connectivity'] = path_kn['connectivity']
             if len(phenotype:=path_kn['phenotype']+path_kn['circuit_type']) > 0:
                 knowledge['phenotypes'] = phenotype
