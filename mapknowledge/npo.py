@@ -73,11 +73,35 @@ NPO_API = f'https://api.github.com/repos/{NPO_OWNER}/{NPO_REPO}'
 NPO_RAW = f'https://raw.githubusercontent.com/{NPO_OWNER}/{NPO_REPO}'
 NPO_GIT = f'https://github.com/{NPO_OWNER}/{NPO_REPO}'
 
-NPO_TTLS = ('apinat-partial-orders',
-            'apinat-pops-more',
-            'apinat-simple-sheet',
-            'sparc-nlp',
-            'apinat-complex')
+NPO_APINATOMY_TTLS = [
+    'apinat-complex',
+    'apinat-manual'
+]
+
+NPO_APINATOMY_LEGACY_TTLS = [
+    'apinat-partial-orders',
+    'apinat-pops-more',
+    'apinat-simple-sheet',
+    'apinatomy-neuron-populations',
+    '../../npo-annotations',
+]
+
+NPO_NLP_TTLS = [
+    'composer-nlp',
+]
+
+NPO_NLP_LEGACY_TTLS = [
+    'sparc-nlp',
+]
+
+NPO_COMPOSER_TTLS = [
+    'composer',
+]
+
+LABEL_TTLS = [
+    '../../npo',
+    '../../sparc-community-terms',
+]
 
 GEN_NEURONS_PATH = 'ttl/generated/neurons/'
 TURTLE_SUFFIX = '.ttl'
@@ -387,26 +411,52 @@ class Npo:
         graphBase._sgv = None       # type: ignore
         del graphBase._sgv
 
-        OntTerm.query._services = (RDFL(self.__rdf_graph, OntId),)
-        for f in NPO_TTLS:
-            ori = OntResIri(f'{NPO_RAW}/{self.__npo_release}/{GEN_NEURONS_PATH}{f}{TURTLE_SUFFIX}')
-            try:
-                if ori.graph is not None:
-                    [self.__rdf_graph.add(t) for t in ori.graph]
-            except:
-                log.warning(f'Could not fetch {ori.iri} from {self.__npo_release}.')
+        def load_path_knowledge_ttls(ttls):
+            g = OntGraph()
+            for f in ttls:
+                ori = OntResIri(f'{NPO_RAW}/{self.__npo_release}/{GEN_NEURONS_PATH}{f}{TURTLE_SUFFIX}')
+                try:
+                    if ori.graph is not None:
+                        if f == 'apinat-manual':
+                            for s, p, o in ori.graph:
+                                if not (
+                                    p == rdfs.subClassOf
+                                    and (o, rdfs.subClassOf, ilxtr.NeuronApinatComplex) in ori.graph
+                                ):
+                                    g.add((s, p, o))
+                        elif f == 'apinatomy-neuron-populations':
+                            [self.__rdf_graph.add((s, rdfs.label, o))
+                                for s, o in ori.graph.subject_objects(rdfs.label)]
+                        else:
+                            [g.add(t) for t in ori.graph]
+                except:
+                    log.warning(f'Could not fetch {ori.iri} from {self.__npo_release}.')
+                    return None
+            return g
 
-        for f in ('apinatomy-neuron-populations', '../../npo', '../../sparc-community-terms'):
+        OntTerm.query._services = (RDFL(self.__rdf_graph, OntId),)
+        # Load ApiNATOMY
+        if (apinatomy_graph := load_path_knowledge_ttls(NPO_APINATOMY_TTLS)) is None:
+            apinatomy_graph = load_path_knowledge_ttls(NPO_APINATOMY_LEGACY_TTLS)
+        self.__rdf_graph += apinatomy_graph if apinatomy_graph is not None else OntGraph()
+        # Load SPARC_NLP
+        if (nlp_graph := load_path_knowledge_ttls(NPO_NLP_TTLS)) is None:
+            nlp_graph = load_path_knowledge_ttls(NPO_NLP_LEGACY_TTLS)
+        self.__rdf_graph += nlp_graph if nlp_graph is not None else OntGraph()
+        # Load pain, portal, and gastInt
+        if (composer_graph := load_path_knowledge_ttls(NPO_COMPOSER_TTLS)) is not None:
+            self.__rdf_graph += composer_graph
+
+        for f in LABEL_TTLS:
             p = urllib.parse.quote(GEN_NEURONS_PATH + f)
             ori = OntResIri(f'{NPO_RAW}/{self.__npo_release}/{p}{TURTLE_SUFFIX}')
             if ori.graph is not None:
                 [self.__rdf_graph.add((s, rdfs.label, o))
-                    for s, o in ori.graph[:rdfs.label:]]                    # type: ignore
-                if f != 'apinatomy-neuron-populations':
-                    [self.__rdf_graph.add((s, rdfs.subClassOf, o))
-                        for s, o in ori.graph[:rdfs.subClassOf:]]           # type: ignore
-                    [self.__rdf_graph.add((s, ilxtr.hasExistingId, o))
-                        for s, o in ori.graph[:ilxtr.hasExistingId:]]       # type: ignore
+                    for s, o in ori.graph.subject_objects(rdfs.label)]
+                [self.__rdf_graph.add((s, rdfs.subClassOf, o))
+                    for s, o in ori.graph.subject_objects(rdfs.subClassOf)]
+                [self.__rdf_graph.add((s, ilxtr.hasExistingId, o))
+                    for s, o in ori.graph.subject_objects(ilxtr.hasExistingId)]
 
         config = Config('npo-connectivity')
         config.load_existing(self.__rdf_graph)
