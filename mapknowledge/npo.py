@@ -75,7 +75,7 @@ NPO_GIT = f'https://github.com/{NPO_OWNER}/{NPO_REPO}'
 
 NPO_APINATOMY_TTLS = [
     'apinat-complex',
-    'apinat-manual'
+    'apinat-manual',
 ]
 
 NPO_APINATOMY_LEGACY_TTLS = [
