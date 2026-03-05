@@ -45,7 +45,7 @@ from neurondm import orders
 from neurondm.core import IntersectionOf
 
 from pyontutils.core import OntGraph, OntResIri
-from pyontutils.namespaces import rdfs, ilxtr
+from pyontutils.namespaces import rdfs, ilxtr, skos
 
 # Renable general logging
 logging.disable(logging.NOTSET)
@@ -73,11 +73,35 @@ NPO_API = f'https://api.github.com/repos/{NPO_OWNER}/{NPO_REPO}'
 NPO_RAW = f'https://raw.githubusercontent.com/{NPO_OWNER}/{NPO_REPO}'
 NPO_GIT = f'https://github.com/{NPO_OWNER}/{NPO_REPO}'
 
-NPO_TTLS = ('apinat-partial-orders',
-            'apinat-pops-more',
-            'apinat-simple-sheet',
-            'sparc-nlp',
-            'apinat-complex')
+NPO_APINATOMY_TTLS = [
+    'apinat-complex',
+    'apinat-manual',
+]
+
+NPO_APINATOMY_LEGACY_TTLS = [
+    'apinat-partial-orders',
+    'apinat-pops-more',
+    'apinat-simple-sheet',
+    'apinatomy-neuron-populations',
+    '../../npo-annotations',
+]
+
+NPO_NLP_TTLS = [
+    'composer-nlp',
+]
+
+NPO_NLP_LEGACY_TTLS = [
+    'sparc-nlp',
+]
+
+NPO_COMPOSER_TTLS = [
+    'composer',
+]
+
+LABEL_TTLS = [
+    '../../npo',
+    '../../sparc-community-terms',
+]
 
 GEN_NEURONS_PATH = 'ttl/generated/neurons/'
 TURTLE_SUFFIX = '.ttl'
@@ -187,6 +211,7 @@ def for_composer(n, cull=False) -> dict[str, Any]:
     fc = dict(
         id = NAMESPACES.curie(str(n.id_)),
         label = str(n.origLabel),
+        long_label = str(pref_labels[0]) if (pref_labels:=lrdf(n, skos.prefLabel)) else str(n.origLabel),
         origin = lpes(n, ilxtr.hasSomaLocatedIn),
         dest = (
             # XXX looking at this there seems to be a fault assumption that
@@ -219,11 +244,14 @@ def for_composer(n, cull=False) -> dict[str, Any]:
                            + [l[0] for l in lpes(n, ilxtr.hasProjectionPhenotype)],
         forward_connections = [fc[0] for fc in lpes(n, ilxtr.hasForwardConnectionPhenotype)],
         node_phenotypes = {NAMESPACES.curie(str(pn)): lpes(n, pn) for pn in NODE_PHENOTYPES},
+        member_of_circuits = [l[0] for l in lpes(n, ilxtr.isMemberOfCircuit)],
 
         # direct references from individual individual neurons
         provenance =      lrdf(n, ilxtr.literatureCitation),
         sentence_number = lrdf(n, ilxtr.sentenceNumber),
         note_alert =      lrdf(n, ilxtr.alertNote),
+        expert_consultants = lrdf(n, ilxtr.expertConsultant),
+        curator_note =       lrdf(n, ilxtr.curatorNote),
         # XXX provenance from ApiNATOMY models as a whole is not ingested
         # right now because composer lacks support for 1:n from neuron to
         # prov, (or rather lacks prov collections) and because it attaches
@@ -387,26 +415,52 @@ class Npo:
         graphBase._sgv = None       # type: ignore
         del graphBase._sgv
 
-        OntTerm.query._services = (RDFL(self.__rdf_graph, OntId),)
-        for f in NPO_TTLS:
-            ori = OntResIri(f'{NPO_RAW}/{self.__npo_release}/{GEN_NEURONS_PATH}{f}{TURTLE_SUFFIX}')
-            try:
-                if ori.graph is not None:
-                    [self.__rdf_graph.add(t) for t in ori.graph]
-            except:
-                log.warning(f'Could not fetch {ori.iri} from {self.__npo_release}.')
+        def load_path_knowledge_ttls(ttls):
+            g = OntGraph()
+            for f in ttls:
+                ori = OntResIri(f'{NPO_RAW}/{self.__npo_release}/{GEN_NEURONS_PATH}{f}{TURTLE_SUFFIX}')
+                try:
+                    if ori.graph is not None:
+                        if f == 'apinat-manual':
+                            for s, p, o in ori.graph:
+                                if not (
+                                    p == rdfs.subClassOf
+                                    and (o, rdfs.subClassOf, ilxtr.NeuronApinatComplex) in ori.graph
+                                ):
+                                    g.add((s, p, o))
+                        elif f == 'apinatomy-neuron-populations':
+                            [self.__rdf_graph.add((s, rdfs.label, o))
+                                for s, o in ori.graph.subject_objects(rdfs.label)]
+                        else:
+                            [g.add(t) for t in ori.graph]
+                except:
+                    log.warning(f'Could not fetch {ori.iri} from {self.__npo_release}.')
+                    return None
+            return g
 
-        for f in ('apinatomy-neuron-populations', '../../npo', '../../sparc-community-terms'):
+        OntTerm.query._services = (RDFL(self.__rdf_graph, OntId),)
+        # Load ApiNATOMY
+        if (apinatomy_graph := load_path_knowledge_ttls(NPO_APINATOMY_TTLS)) is None:
+            apinatomy_graph = load_path_knowledge_ttls(NPO_APINATOMY_LEGACY_TTLS)
+        self.__rdf_graph += apinatomy_graph if apinatomy_graph is not None else OntGraph()
+        # Load SPARC_NLP
+        if (nlp_graph := load_path_knowledge_ttls(NPO_NLP_TTLS)) is None:
+            nlp_graph = load_path_knowledge_ttls(NPO_NLP_LEGACY_TTLS)
+        self.__rdf_graph += nlp_graph if nlp_graph is not None else OntGraph()
+        # Load pain, portal, and gastInt
+        if (composer_graph := load_path_knowledge_ttls(NPO_COMPOSER_TTLS)) is not None:
+            self.__rdf_graph += composer_graph
+
+        for f in LABEL_TTLS:
             p = urllib.parse.quote(GEN_NEURONS_PATH + f)
             ori = OntResIri(f'{NPO_RAW}/{self.__npo_release}/{p}{TURTLE_SUFFIX}')
             if ori.graph is not None:
                 [self.__rdf_graph.add((s, rdfs.label, o))
-                    for s, o in ori.graph[:rdfs.label:]]                    # type: ignore
-                if f != 'apinatomy-neuron-populations':
-                    [self.__rdf_graph.add((s, rdfs.subClassOf, o))
-                        for s, o in ori.graph[:rdfs.subClassOf:]]           # type: ignore
-                    [self.__rdf_graph.add((s, ilxtr.hasExistingId, o))
-                        for s, o in ori.graph[:ilxtr.hasExistingId:]]       # type: ignore
+                    for s, o in ori.graph.subject_objects(rdfs.label)]
+                [self.__rdf_graph.add((s, rdfs.subClassOf, o))
+                    for s, o in ori.graph.subject_objects(rdfs.subClassOf)]
+                [self.__rdf_graph.add((s, ilxtr.hasExistingId, o))
+                    for s, o in ori.graph.subject_objects(ilxtr.hasExistingId)]
 
         config = Config('npo-connectivity')
         config.load_existing(self.__rdf_graph)
@@ -519,7 +573,7 @@ class Npo:
         if (path_kn:=self.__get_neuron_knowledge(entity)) is not None:
             if 'label' not in knowledge:
                 knowledge['label'] = path_kn['label']
-            knowledge['long-label'] = path_kn['label']
+            knowledge['long-label'] = path_kn['long_label']
             knowledge['connectivity'] = path_kn['connectivity']
             if len(phenotype:=path_kn['phenotype']+path_kn['circuit_type']) > 0:
                 knowledge['phenotypes'] = phenotype
@@ -533,6 +587,12 @@ class Npo:
                 knowledge['alert'] = alert
             if len(references:=path_kn['provenance']) > 0:
                 knowledge['references'] = references
+            if len(expert_consultants:=path_kn['expert_consultants']) > 0:
+                knowledge['expert-consultants'] = expert_consultants
+            if len(curator_note:=path_kn['curator_note']) > 0:
+                knowledge['curator-note'] = curator_note
+            if len(member_of_circuits:=path_kn['member_of_circuits']) > 0:
+                knowledge['member-of-circuits'] = member_of_circuits
             knowledge['pathDisconnected'] = not path_kn.get('connected', False)
             knowledge['forward-connections'] = path_kn['forward_connections']
             all_nodes = {n for edge in path_kn['connectivity'] for n in edge}
