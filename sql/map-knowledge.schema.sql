@@ -307,6 +307,6 @@ ALTER TABLE ONLY public.path_node_mappings
 ALTER TABLE ONLY public.path_node_mappings
     ADD CONSTRAINT sckan_path_constraint FOREIGN KEY (sckan_id, path_id) REFERENCES public.feature_terms(source_id, term_id);
 ALTER TABLE ONLY public.path_node_mappings
-    ADD CONSTRAINT sckan_node_constraint FOREIGN KEY (sckan_id, path_id, node_id) REFERENCES public.path_nodes(source_id, path_id, node_id);
+    ADD CONSTRAINT sckan_node_constraint FOREIGN KEY (sckan_id, path_id, sckan_node_id) REFERENCES public.path_nodes(source_id, path_id, node_id);
 
 --------------------------------------------------------------
