@@ -166,6 +166,21 @@ CREATE TABLE public.path_node_mappings (
 );
 ALTER TABLE public.path_node_mappings OWNER TO abi;
 
+CREATE TABLE public.expert_consultants
+(
+    expert_id character varying NOT NULL,
+    type character varying,
+    details text
+);
+ALTER TABLE public.expert_consultants OWNER to abi;
+
+CREATE TABLE IF NOT EXISTS public.feature_expert_consultants
+(
+    source_id character varying NOT NULL,
+    term_id character varying NOT NULL,
+    expert_id character varying NOT NULL
+);
+ALTER TABLE public.feature_expert_consultants OWNER to abi;
 --------------------------------------------------------------
 
 ALTER TABLE ONLY public.anatomical_types
@@ -179,6 +194,9 @@ ALTER TABLE ONLY public.knowledge_sources
 
 ALTER TABLE ONLY public.taxons
     ADD CONSTRAINT taxons_pkey PRIMARY KEY (taxon_id);
+
+ALTER TABLE ONLY public.expert_consultants
+    ADD CONSTRAINT expert_consultants_pkey PRIMARY KEY (expert_id);
 
 --------------------------------------------------------------
 
@@ -308,5 +326,12 @@ ALTER TABLE ONLY public.path_node_mappings
     ADD CONSTRAINT sckan_path_constraint FOREIGN KEY (sckan_id, path_id) REFERENCES public.feature_terms(source_id, term_id);
 ALTER TABLE ONLY public.path_node_mappings
     ADD CONSTRAINT sckan_node_constraint FOREIGN KEY (sckan_id, path_id, sckan_node_id) REFERENCES public.path_nodes(source_id, path_id, node_id);
+
+ALTER TABLE ONLY public.feature_expert_consultants
+    ADD CONSTRAINT source_constraint FOREIGN KEY (source_id) REFERENCES public.knowledge_sources(source_id);
+ALTER TABLE ONLY public.feature_expert_consultants
+    ADD CONSTRAINT feature_constraint FOREIGN KEY (source_id, term_id) REFERENCES public.feature_terms(source_id, term_id);
+ALTER TABLE ONLY public.feature_expert_consultants
+    ADD CONSTRAINT expert_constraint FOREIGN KEY (expert_id) REFERENCES public.expert_consultants(expert_id);
 
 --------------------------------------------------------------
