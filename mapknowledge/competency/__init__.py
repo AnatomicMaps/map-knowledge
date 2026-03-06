@@ -134,6 +134,7 @@ class CompetencyDatabase:
         cursor.execute('DELETE FROM path_phenotypes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM path_properties WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM path_node_mappings WHERE source_id=%s', (source_id, ))
+        cursor.execute('DELETE FROM path_node_mappings WHERE sckan_id=%s', (source_id, ))
         cursor.execute('DELETE FROM path_nodes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_types WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_terms WHERE source_id=%s', (source_id, ))
