@@ -137,6 +137,7 @@ class CompetencyDatabase:
         cursor.execute('DELETE FROM path_nodes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_types WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_terms WHERE source_id=%s', (source_id, ))
+        cursor.execute('DELETE FROM feature_expert_consultants WHERE source_id=%s', (source_id, ))
 
     def __update_anatomical_types(self, cursor):
     #===========================================
@@ -237,6 +238,16 @@ class CompetencyDatabase:
                                             for (node, sckan_node) in record.get('node-mappings', []) ]
                     cursor.executemany('INSERT INTO path_node_mappings (source_id, path_id, node_id, sckan_id, sckan_node_id) VALUES (%s, %s, %s, %s, %s) ON CONFLICT DO NOTHING',
                                         node_mappings)
+
+                    # Expert consultants
+                    expert_consultants = record.get('expert-consultants', [])
+                    cursor.executemany('INSERT INTO expert_consultants (expert_id) VALUES (%s) ON CONFLICT DO NOTHING',
+                                       ((expert,) for expert in expert_consultants))
+
+                    # Path expert consultants
+                    with cursor.copy("COPY feature_expert_consultants (source_id, term_id, expert_id) FROM STDIN") as copy:
+                        for expert in expert_consultants:
+                            copy.write_row((source_id, path_id, expert))
 
             if progress_bar is not None:
                 progress_bar.update(1)
