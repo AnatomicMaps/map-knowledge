@@ -137,8 +137,8 @@ class CompetencyDatabase:
         cursor.execute('DELETE FROM path_node_mappings WHERE sckan_id=%s', (source_id, ))
         cursor.execute('DELETE FROM path_nodes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_types WHERE source_id=%s', (source_id, ))
-        cursor.execute('DELETE FROM feature_terms WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_expert_consultants WHERE source_id=%s', (source_id, ))
+        cursor.execute('DELETE FROM feature_terms WHERE source_id=%s', (source_id, ))
 
     def __update_anatomical_types(self, cursor):
     #===========================================
