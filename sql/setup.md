@@ -19,5 +19,6 @@ $ poetry install --with tools
 
 $ poetry shell
 $ export KNOWLEDGE_USER=abi:XXX
-$ python tools/pg_import.py json sckan/sckan-2024-09-21.json
+$ python tools/cq_upgrade.py
+$ python tools/pg_import.py json sckan/sckan-2026-02-11.json
 ```
