@@ -32,6 +32,7 @@ def _fk_constraint_sql(table: str, constraint: str, expression: str) -> str:
 
 SCHEMA_1_1_TABLES = [
     'CREATE TABLE IF NOT EXISTS metadata (name character varying PRIMARY KEY, value text NOT NULL)',
+    f'ALTER TABLE metadata OWNER TO {KNOWLEDGE_USER}',
     'CREATE TABLE IF NOT EXISTS path_node_mappings ('
     'source_id character varying NOT NULL, '
     'path_id character varying NOT NULL, '
@@ -39,16 +40,19 @@ SCHEMA_1_1_TABLES = [
     'sckan_id character varying, '
     'sckan_node_id character varying'
     ')',
+    f'ALTER TABLE path_node_mappings OWNER TO {KNOWLEDGE_USER}',
     'CREATE TABLE IF NOT EXISTS expert_consultants ('
     'expert_id character varying PRIMARY KEY, '
     'type character varying, '
     'details text'
     ')',
+    f'ALTER TABLE expert_consultants OWNER TO {KNOWLEDGE_USER}',
     'CREATE TABLE IF NOT EXISTS feature_expert_consultants ('
     'source_id character varying NOT NULL, '
     'term_id character varying NOT NULL, '
     'expert_id character varying NOT NULL'
     ')',
+    f'ALTER TABLE feature_expert_consultants OWNER TO {KNOWLEDGE_USER}',
 ]
 
 SCHEMA_1_1_FOREIGN_KEYS = [
@@ -151,22 +155,25 @@ def main():
 
         if not schema_upgrade_required(db):
             logging.info('Competency schema is up to date.')
-            return 0
+            return
 
         if args.check_only:
             message = schema_upgrade_message(db)
             if message is not None:
                 logging.warning(message)
-            return 1
+            return
 
         logging.info('Upgrading competency schema...')
         upgrade_schema(db)
         logging.info('Competency schema upgraded to version %s.', schema_version(db))
-        return 0
+        return
 
     finally:
         db.close()
 
+#===============================================================================
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    main()
+
+#===============================================================================
