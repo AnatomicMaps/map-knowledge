@@ -13,11 +13,15 @@ import psycopg as pg
 #===============================================================================
 
 PG_DATABASE = 'map-knowledge'
-KNOWLEDGE_USER = os.environ.get('KNOWLEDGE_USER')
-KNOWLEDGE_HOST = os.environ.get('KNOWLEDGE_HOST', 'localhost:5432')
+COMPETENCY_USER = os.environ.get('COMPETENCY_USER')
+COMPETENCY_HOST = os.environ.get('COMPETENCY_HOST', 'localhost:5432')
+COMPETENCY_OWNER = COMPETENCY_USER.split(':', 1)[0] if COMPETENCY_USER else None
 
 COMPETENCY_SCHEMA_VERSION = '1.1'
 COMPETENCY_SCHEMA_VERSION_KEY = 'schema_version'
+
+def _quoted_identifier(value: str) -> str:
+    return f'"{value.replace("\"", "\"\"")}"'
 
 def _fk_constraint_sql(table: str, constraint: str, expression: str) -> str:
     return f"""
@@ -32,7 +36,6 @@ def _fk_constraint_sql(table: str, constraint: str, expression: str) -> str:
 
 SCHEMA_1_1_TABLES = [
     'CREATE TABLE IF NOT EXISTS metadata (name character varying PRIMARY KEY, value text NOT NULL)',
-    f'ALTER TABLE metadata OWNER TO {KNOWLEDGE_USER}',
     'CREATE TABLE IF NOT EXISTS path_node_mappings ('
     'source_id character varying NOT NULL, '
     'path_id character varying NOT NULL, '
@@ -40,19 +43,23 @@ SCHEMA_1_1_TABLES = [
     'sckan_id character varying, '
     'sckan_node_id character varying'
     ')',
-    f'ALTER TABLE path_node_mappings OWNER TO {KNOWLEDGE_USER}',
     'CREATE TABLE IF NOT EXISTS expert_consultants ('
     'expert_id character varying PRIMARY KEY, '
     'type character varying, '
     'details text'
     ')',
-    f'ALTER TABLE expert_consultants OWNER TO {KNOWLEDGE_USER}',
     'CREATE TABLE IF NOT EXISTS feature_expert_consultants ('
     'source_id character varying NOT NULL, '
     'term_id character varying NOT NULL, '
     'expert_id character varying NOT NULL'
     ')',
-    f'ALTER TABLE feature_expert_consultants OWNER TO {KNOWLEDGE_USER}',
+]
+
+SCHEMA_1_1_OWNERS = [] if not COMPETENCY_OWNER else [
+    f'ALTER TABLE metadata OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
+    f'ALTER TABLE path_node_mappings OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
+    f'ALTER TABLE expert_consultants OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
+    f'ALTER TABLE feature_expert_consultants OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
 ]
 
 SCHEMA_1_1_FOREIGN_KEYS = [
@@ -70,6 +77,7 @@ COMPETENCY_SCHEMA_UPGRADES: dict[str | None, tuple[str, list[str]]] = {
         '1.1',
         [
             *SCHEMA_1_1_TABLES,
+            *SCHEMA_1_1_OWNERS,
             *[_fk_constraint_sql(*fk) for fk in SCHEMA_1_1_FOREIGN_KEYS],
             "INSERT INTO metadata (name, value) VALUES ('schema_version', '1.1') "
             "ON CONFLICT (name) DO UPDATE SET value = excluded.value",
@@ -105,9 +113,17 @@ def schema_upgrade_message(db, required_version: str=COMPETENCY_SCHEMA_VERSION) 
         return None
     return (
         f'Competency schema version {required_version} is required but database has '
-        f'version {current_version}. Run `python tools/cq_upgrade.py` to upgrade the schema.'
+        f'version {current_version}. Run `python tools/cq_upgrade.py --upgrade` to upgrade the schema.'
     )
 
+def confirm_upgrade(database_name: str) -> bool:
+    backup_file = f'{database_name}.backup.sql'
+    backup_command = f'pg_dump -s -d "{database_name}" > {backup_file}'
+    print(f'About to upgrade schema for database: {database_name}')
+    print('Please confirm you have backed up the database schema before proceeding.')
+    print(f'Suggested backup command: {backup_command}')
+    response = input('Proceed with schema upgrade? [y/N]: ').strip().lower()
+    return response in ('y', 'yes')
 
 def upgrade_schema(db, required_version: str=COMPETENCY_SCHEMA_VERSION):
     current_version = schema_version(db)
@@ -135,9 +151,9 @@ def main():
     parser.add_argument('-d', '--debug', action='store_true', help='Show DEBUG log messages')
     parser.add_argument('-q', '--quiet', action='store_true', help='Suppress INFO log messages')
     parser.add_argument(
-        '--check-only',
+        '--upgrade',
         action='store_true',
-        help='Only check schema version and exit with non-zero status if upgrade is needed.',
+        help='Apply schema upgrade after interactive confirmation. Default mode only checks status.',
     )
     args = parser.parse_args()
 
@@ -146,10 +162,11 @@ def main():
     elif not args.quiet:
         logging.basicConfig(level=logging.INFO)
 
-    pg_user = f'{KNOWLEDGE_USER}@' if KNOWLEDGE_USER else ''
-    db = pg.connect(f'postgresql://{pg_user}{KNOWLEDGE_HOST}/{PG_DATABASE}')
+    pg_user = f'{COMPETENCY_USER}@' if COMPETENCY_USER else ''
+    db = pg.connect(f'postgresql://{pg_user}{COMPETENCY_HOST}/{PG_DATABASE}')
     try:
         current_version = schema_version(db)
+        logging.info('Database: %s', PG_DATABASE)
         logging.info('Current competency schema version: %s', current_version)
         logging.info('Required competency schema version: %s', COMPETENCY_SCHEMA_VERSION)
 
@@ -157,10 +174,14 @@ def main():
             logging.info('Competency schema is up to date.')
             return
 
-        if args.check_only:
+        if not args.upgrade:
             message = schema_upgrade_message(db)
             if message is not None:
                 logging.warning(message)
+            return
+
+        if not confirm_upgrade(PG_DATABASE):
+            logging.warning('Schema upgrade cancelled by user.')
             return
 
         logging.info('Upgrading competency schema...')
