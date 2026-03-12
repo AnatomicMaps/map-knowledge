@@ -34,16 +34,16 @@ DEFAULT_STORE = 'knowledgebase.db'
 
 #===============================================================================
 
-PG_DATABASE = 'map-knowledge'
+COMPETENCY_DATABASE = os.environ.get('COMPETENCY_DATABASE', 'map-knowledge')
 
-KNOWLEDGE_USER = os.environ.get('KNOWLEDGE_USER')
-KNOWLEDGE_HOST = os.environ.get('KNOWLEDGE_HOST', 'localhost:5432')
+COMPETENCY_USER = os.environ.get('COMPETENCY_USER')
+COMPETENCY_HOST = os.environ.get('COMPETENCY_HOST', 'localhost:5432')
 
 #===============================================================================
 
-def pg_import(knowledge: KnowledgeList):
+def cq_import(knowledge: KnowledgeList):
 #=======================================
-    competency_db = CompetencyDatabase(KNOWLEDGE_USER, KNOWLEDGE_HOST, PG_DATABASE)
+    competency_db = CompetencyDatabase(COMPETENCY_USER, COMPETENCY_HOST, COMPETENCY_DATABASE)
     competency_db.import_knowledge(knowledge, True)
 
 #===============================================================================
@@ -77,6 +77,13 @@ def store_knowledge(args) -> KnowledgeList:
     store.close()
     return knowledge
 
+
+def confirm_import(database_name: str) -> bool:
+#=============================================
+    print(f'About to import knowledge into database: {database_name}')
+    response = input('Proceed with import? [y/N]: ').strip().lower()
+    return response in ('y', 'yes')
+
 #===============================================================================
 #===============================================================================
 
@@ -106,7 +113,13 @@ def main():
         logging.basicConfig(level=logging.DEBUG)
     elif not args.quiet:
         logging.basicConfig(level=logging.INFO)
-    pg_import(args.func(args))
+
+    logging.info('Database: %s', COMPETENCY_DATABASE)
+    if not confirm_import(COMPETENCY_DATABASE):
+        logging.warning('Import cancelled by user.')
+        return
+
+    cq_import(args.func(args))
 
 #===============================================================================
 

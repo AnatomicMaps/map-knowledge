@@ -18,7 +18,7 @@ $ psql -d "map-knowledge" -f sql/map-knowledge.schema.sql -U abi
 $ poetry install --with tools
 
 $ poetry shell
-$ export KNOWLEDGE_USER=abi:XXX
+$ export COMPETENCY_USER=abi:XXX
 $ python tools/cq_upgrade.py
-$ python tools/pg_import.py json sckan/sckan-2026-02-11.json
+$ python tools/cq_import.py json sckan/sckan-2026-02-11.json
 ```
