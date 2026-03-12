@@ -229,8 +229,10 @@ def for_composer(n, cull=False) -> dict[str, Any]:
             # XXX dendrites don't really ... via ... they are all both terminal and via at the same time ...
             [dict(loc=l, type='DENDRITE') for l in lpes(n, ilxtr.hasDendriteLocatedIn)]
         ),
-        #laterality = lpes(n, ilxtr.hasLaterality),  # left/rigth tricky ?
-        #projection_laterality = lpes(n, ilxtr.???),  # axon located in contra ?
+        #laterality = lpes(n, ilxtr.hasLaterality),  # left/right tricky ?
+        projection_lateralities = [l[0] for l in lpes(n, ilxtr.hasProjectionLaterality)],
+        soma_phenotypes =     [l[0] for l in lpes(n, ilxtr.hasSomaPhenotype)],
+        axon_phenotypes =     [l[0] for l in lpes(n, ilxtr.hasAxonPhenotype)],
         species =            [l[0] for l in lpes(n, ilxtr.hasInstanceInTaxon)],
         sex =                [NAMESPACES.curie(str(p.p)) for p in n if not isinstance(p, NegPhenotype) and p.e==ilxtr.hasBiologicalSex and not collect.append((ilxtr.hasBiologicalSex , p.p))],
         neg_sex =            [NAMESPACES.curie(str(p.p)) for p in n if isinstance(p, NegPhenotype) and p.e==ilxtr.hasBiologicalSex and not collect.append((ilxtr.hasBiologicalSex , p.p))],
@@ -593,6 +595,12 @@ class Npo:
                 knowledge['curator-note'] = curator_note
             if len(member_of_circuits:=path_kn['member_of_circuits']) > 0:
                 knowledge['member-of-circuits'] = member_of_circuits
+            if len(projection_lateralities:=path_kn.get('projection_lateralities', [])) > 0:
+                knowledge['projection-lateralities'] = projection_lateralities
+            if len(soma_phenotypes:=path_kn.get('soma_phenotypes', [])) > 0:
+                knowledge['soma-phenotypes'] = soma_phenotypes
+            if len(axon_phenotypes:=path_kn.get('axon_phenotypes', [])) > 0:
+                knowledge['axon-phenotypes'] = axon_phenotypes
             knowledge['pathDisconnected'] = not path_kn.get('connected', False)
             knowledge['forward-connections'] = path_kn['forward_connections']
             all_nodes = {n for edge in path_kn['connectivity'] for n in edge}
