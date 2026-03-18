@@ -5,15 +5,15 @@
 This will save SCKAN as JSON, formatted for `map-knowldege`.
 
 ```sh
-$ python tools/sckan_connectivity.py --store-directory sckan load --sckan sckan-2024-09-21 --save
+$ python tools/sckan_connectivity.py --store-directory sckan load --sckan sckan-2026-02-11 --save
 ```
 
 ## Reloading CQ database with SCKAN NPO knowledge
 
 ```sh
 $ source .venv/bin/activate
-$ export KNOWLEDGE_USER=xxxxxx:xxxxxxx
-$ PYTHONPATH=. python tools/pg_import.py json sckan/sckan-2024-09-21.json
+$ export COMPETENCY_USER=xxxxxx:xxxxxxx
+$ PYTHONPATH=. python tools/cq_import.py json sckan/sckan-2026-02-11.json
 ```
 
 
@@ -28,4 +28,4 @@ $ PYTHONPATH=. python tools/pg_import.py json sckan/sckan-2024-09-21.json
 7. Update flatmap manifests to use the new SCKAN and rebuild the maps (automatic, on push (tag??)).
 8. Map knowledge in the staging CQ database will be automatically updated when a map is rebuilt.
 9. At promotion time, update production databases (`mapknowledge.db` and production CQ database).
-10. At promotion time, copy rebuilt maps from staging to production -- map knowledge in the production CQ database will be automatically updated. 
+10. At promotion time, copy rebuilt maps from staging to production -- map knowledge in the production CQ database will be automatically updated.
