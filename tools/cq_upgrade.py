@@ -12,7 +12,8 @@ import psycopg as pg
 
 #===============================================================================
 
-PG_DATABASE = 'map-knowledge'
+COMPETENCY_DATABASE = os.environ.get('COMPETENCY_DATABASE', 'map-knowledge')
+
 COMPETENCY_USER = os.environ.get('COMPETENCY_USER')
 COMPETENCY_HOST = os.environ.get('COMPETENCY_HOST', 'localhost:5432')
 COMPETENCY_OWNER = COMPETENCY_USER.split(':', 1)[0] if COMPETENCY_USER else None
@@ -163,10 +164,10 @@ def main():
         logging.basicConfig(level=logging.INFO)
 
     pg_user = f'{COMPETENCY_USER}@' if COMPETENCY_USER else ''
-    db = pg.connect(f'postgresql://{pg_user}{COMPETENCY_HOST}/{PG_DATABASE}')
+    db = pg.connect(f'postgresql://{pg_user}{COMPETENCY_HOST}/{COMPETENCY_DATABASE}')
     try:
         current_version = schema_version(db)
-        logging.info('Database: %s', PG_DATABASE)
+        logging.info('Database: %s', COMPETENCY_DATABASE)
         logging.info('Current competency schema version: %s', current_version)
         logging.info('Required competency schema version: %s', COMPETENCY_SCHEMA_VERSION)
 
@@ -180,7 +181,7 @@ def main():
                 logging.warning(message)
             return
 
-        if not confirm_upgrade(PG_DATABASE):
+        if not confirm_upgrade(COMPETENCY_DATABASE):
             logging.warning('Schema upgrade cancelled by user.')
             return
 
