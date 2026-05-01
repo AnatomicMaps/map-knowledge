@@ -138,6 +138,7 @@ class CompetencyDatabase:
         cursor.execute('DELETE FROM path_nodes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_types WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_expert_consultants WHERE source_id=%s', (source_id, ))
+        cursor.execute('DELETE FROM feature_relationship WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_terms WHERE source_id=%s', (source_id, ))
 
     def __update_anatomical_types(self, cursor):
@@ -258,7 +259,6 @@ class CompetencyDatabase:
     def __update_features(self, cursor, knowledge: KnowledgeList):
     #=============================================================
         source_id = knowledge.source.source_id
-        cursor.execute('DELETE FROM feature_terms WHERE source_id=%s', (source_id, ))
 
         for record in knowledge.knowledge:
             if source_id == clean_knowledge_source(record.get('source', '')):
@@ -271,6 +271,13 @@ class CompetencyDatabase:
                 with cursor.copy("COPY feature_types (source_id, term_id, type_id) FROM STDIN") as copy:
                     if (term_type:=record.get('type')) is not None:
                         copy.write_row([source_id, record['id'], term_type])
+
+        # Feature relationships
+        with cursor.copy("COPY feature_relationship (source_id, feature_0, feature_1, relationship) FROM STDIN") as copy:
+            for record in knowledge.knowledge:
+                if source_id == clean_knowledge_source(record.get('source', '')):
+                    for descendant in record.get('descendants', []):
+                        copy.write_row([source_id, descendant, record['id'], 'descendant-ancestor'])
 
     def __update_knowledge_source(self, cursor, source: KnowledgeSource):
     #====================================================================
