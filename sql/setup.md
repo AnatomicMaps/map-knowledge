@@ -15,10 +15,10 @@ $ cd knowledge
 
 $ psql -d "map-knowledge" -f sql/map-knowledge.schema.sql -U abi
 
-$ poetry install --with tools
+$ uv sync --group tools
 
-$ poetry shell
 $ export COMPETENCY_USER=abi:XXX
-$ python tools/cq_upgrade.py
-$ python tools/cq_import.py json sckan/sckan-2026-02-11.json
+$ export COMPETENCY_DATABASE=map-knowledge
+$ uv run python tools/cq_upgrade.py
+$ uv run python tools/cq_import.py json sckan/sckan-2026-02-11.json
 ```
