@@ -296,6 +296,7 @@ def for_composer(n, cull=False) -> dict[str, Any]:
         note_alert =      lrdf(n, ilxtr.alertNote),
         expert_consultants = lrdf(n, ilxtr.expertConsultant),
         curator_note =       lrdf(n, ilxtr.curatorNote),
+        data_citation =      lrdf(n, ilxtr.dataCitation),
         # XXX provenance from ApiNATOMY models as a whole is not ingested
         # right now because composer lacks support for 1:n from neuron to
         # prov, (or rather lacks prov collections) and because it attaches
@@ -662,6 +663,8 @@ class Npo:
                 knowledge['expert-consultants'] = expert_consultants
             if len(curator_note:=kn.get('curator_note', [])) > 0:
                 knowledge['curator-note'] = curator_note
+            if len(data_citation:=kn.get('data_citation', [])) > 0:
+                knowledge['data-citations'] = data_citation
             if len(circuit:=kn.get('circuit_type', [])) > 0:
                 knowledge['phenotypes'] = knowledge.get('phenotypes', []) + circuit
             knowledge['descriptive-phenotypes'] = {

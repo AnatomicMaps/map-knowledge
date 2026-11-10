@@ -87,11 +87,17 @@ SCHEMA_1_2_TABLES = [
     'term_id character varying NOT NULL, '
     'note text NOT NULL'
     ')',
+    'CREATE TABLE IF NOT EXISTS feature_data_citations ('
+    'source_id character varying NOT NULL, '
+    'term_id character varying NOT NULL, '
+    'evidence_id character varying NOT NULL'
+    ')',
 ]
 
 SCHEMA_1_2_OWNERS = [] if not COMPETENCY_OWNER else [
     f'ALTER TABLE feature_desc_attributes OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
     f'ALTER TABLE feature_curator_notes OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
+    f'ALTER TABLE feature_data_citations OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
 ]
 
 SCHEMA_1_2_FOREIGN_KEYS = [
@@ -102,6 +108,9 @@ SCHEMA_1_2_FOREIGN_KEYS = [
     ('path_properties', 'pp_type_fk', 'FOREIGN KEY (type_id) REFERENCES anatomical_types(type_id)'),
     ('feature_curator_notes', 'fcn_source_fk', 'FOREIGN KEY (source_id) REFERENCES knowledge_sources(source_id)'),
     ('feature_curator_notes', 'fcn_term_fk', 'FOREIGN KEY (source_id, term_id) REFERENCES feature_terms(source_id, term_id)'),
+    ('feature_data_citations', 'fdc_source_fk', 'FOREIGN KEY (source_id) REFERENCES knowledge_sources(source_id)'),
+    ('feature_data_citations', 'fdc_term_fk', 'FOREIGN KEY (source_id, term_id) REFERENCES feature_terms(source_id, term_id)'),
+    ('feature_data_citations', 'fdc_evidence_fk', 'FOREIGN KEY (evidence_id) REFERENCES evidence(evidence_id)'),
 ]
 
 COMPETENCY_SCHEMA_UPGRADES: dict[str | None, tuple[str, list[str]]] = {

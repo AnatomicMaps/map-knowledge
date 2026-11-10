@@ -139,6 +139,7 @@ class CompetencyDatabase:
         cursor.execute('DELETE FROM feature_types WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_expert_consultants WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_curator_notes WHERE source_id=%s', (source_id, ))
+        cursor.execute('DELETE FROM feature_data_citations WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_relationship WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_desc_attributes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_terms WHERE source_id=%s', (source_id, ))
@@ -280,6 +281,14 @@ class CompetencyDatabase:
                     with cursor.copy("COPY feature_curator_notes (source_id, term_id, note) FROM STDIN") as copy:
                         for note in record.get('curator-note', []):
                             copy.write_row((source_id, path_id, note))
+
+                    # Path data citations (dataset DOIs, stored as evidence)
+                    data_citations = record.get('data-citations', [])
+                    cursor.executemany('INSERT INTO evidence (evidence_id) VALUES (%s) ON CONFLICT DO NOTHING',
+                                       ((citation,) for citation in data_citations))
+                    with cursor.copy("COPY feature_data_citations (source_id, term_id, evidence_id) FROM STDIN") as copy:
+                        for citation in data_citations:
+                            copy.write_row((source_id, path_id, citation))
 
                     # Descriptive attributes (phenotype type → values)
                     descriptive_phenotypes = record.get('descriptive-phenotypes', {})
