@@ -289,6 +289,8 @@ def for_composer(n, cull=False) -> dict[str, Any]:
 
         # Subclass relationships (e.g. EMP:subClassOf npokb:915)
         subclass_of =        lrdf(n, rdflib.URIRef('http://uri.interlex.org/temp/uris/subClassOf')),
+        # Corresponding cell types in other papers (directed, many-to-many, may cross species)
+        maps_to =            lrdf(n, rdflib.URIRef('http://uri.interlex.org/temp/uris/mapsTo')),
 
         # Provenance ---
         provenance =      lrdf(n, ilxtr.literatureCitation),
@@ -731,6 +733,8 @@ class Npo:
                 for pn, locs in cell_kn['node_phenotypes'].items() if len(locs) > 0
             }
             knowledge['subclass-of'] = cell_kn.get('subclass_of', {})
+            if len(maps_to:=[t for t in cell_kn.get('maps_to', []) if not t.startswith('TEMP:MISSING')]) > 0:
+                knowledge['maps-to'] = maps_to
 
         return knowledge
 

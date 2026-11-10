@@ -323,6 +323,8 @@ class CompetencyDatabase:
                         copy.write_row([source_id, record['id'], term_type])
 
         # Feature relationships
+        term_ids = {record['id'] for record in knowledge.knowledge
+                        if source_id == clean_knowledge_source(record.get('source', ''))}
         with cursor.copy("COPY feature_relationship (source_id, feature_0, feature_1, relationship) FROM STDIN") as copy:
             for record in knowledge.knowledge:
                 if source_id == clean_knowledge_source(record.get('source', '')):
@@ -330,6 +332,9 @@ class CompetencyDatabase:
                         copy.write_row([source_id, descendant, record['id'], 'descendant-ancestor'])
                     for superclass in record.get('subclass-of', []):
                         copy.write_row([source_id, record['id'], superclass, 'subclass-of'])
+                    for target in record.get('maps-to', []):
+                        if target in term_ids:      # feature_1 must be a term of this source
+                            copy.write_row([source_id, record['id'], target, 'maps-to'])
 
     def __update_knowledge_source(self, cursor, source: KnowledgeSource):
     #====================================================================
@@ -342,3 +347,4 @@ class CompetencyDatabase:
 
 #===============================================================================
 #===============================================================================
+
