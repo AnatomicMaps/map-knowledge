@@ -82,10 +82,16 @@ SCHEMA_1_2_TABLES = [
     'feature_id character varying NOT NULL'
     ')',
     'ALTER TABLE path_properties ADD COLUMN IF NOT EXISTS type_id character varying',
+    'CREATE TABLE IF NOT EXISTS feature_curator_notes ('
+    'source_id character varying NOT NULL, '
+    'term_id character varying NOT NULL, '
+    'note text NOT NULL'
+    ')',
 ]
 
 SCHEMA_1_2_OWNERS = [] if not COMPETENCY_OWNER else [
     f'ALTER TABLE feature_desc_attributes OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
+    f'ALTER TABLE feature_curator_notes OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
 ]
 
 SCHEMA_1_2_FOREIGN_KEYS = [
@@ -94,6 +100,8 @@ SCHEMA_1_2_FOREIGN_KEYS = [
     ('feature_desc_attributes', 'fda_type_fk', 'FOREIGN KEY (type_id) REFERENCES anatomical_types(type_id)'),
     ('feature_desc_attributes', 'fda_feat_fk', 'FOREIGN KEY (source_id, feature_id) REFERENCES feature_terms(source_id, term_id)'),
     ('path_properties', 'pp_type_fk', 'FOREIGN KEY (type_id) REFERENCES anatomical_types(type_id)'),
+    ('feature_curator_notes', 'fcn_source_fk', 'FOREIGN KEY (source_id) REFERENCES knowledge_sources(source_id)'),
+    ('feature_curator_notes', 'fcn_term_fk', 'FOREIGN KEY (source_id, term_id) REFERENCES feature_terms(source_id, term_id)'),
 ]
 
 COMPETENCY_SCHEMA_UPGRADES: dict[str | None, tuple[str, list[str]]] = {

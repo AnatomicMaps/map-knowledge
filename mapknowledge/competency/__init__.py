@@ -138,6 +138,7 @@ class CompetencyDatabase:
         cursor.execute('DELETE FROM path_nodes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_types WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_expert_consultants WHERE source_id=%s', (source_id, ))
+        cursor.execute('DELETE FROM feature_curator_notes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_relationship WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_desc_attributes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_terms WHERE source_id=%s', (source_id, ))
@@ -147,7 +148,9 @@ class CompetencyDatabase:
         source_id = knowledge.source.source_id
         cursor.execute('''DELETE FROM anatomical_types at
                             WHERE (NOT EXISTS (SELECT 1 FROM feature_types ft WHERE at.type_id = ft.type_id))
-                              AND (NOT EXISTS (SELECT 1 FROM path_node_types pnt WHERE at.type_id = pnt.type_id))''')
+                              AND (NOT EXISTS (SELECT 1 FROM path_node_types pnt WHERE at.type_id = pnt.type_id))
+                              AND (NOT EXISTS (SELECT 1 FROM feature_desc_attributes fda WHERE at.type_id = fda.type_id))
+                              AND (NOT EXISTS (SELECT 1 FROM path_properties pp WHERE at.type_id = pp.type_id))''')
         ANATOMICAL_TYPES = [type for record in knowledge.knowledge
                             if source_id == clean_knowledge_source(record.get('source', ''))
                             and (type:=record.get('class'))]
@@ -272,6 +275,11 @@ class CompetencyDatabase:
                     with cursor.copy("COPY feature_expert_consultants (source_id, term_id, expert_id) FROM STDIN") as copy:
                         for expert in expert_consultants:
                             copy.write_row((source_id, path_id, expert))
+
+                    # Path curator notes
+                    with cursor.copy("COPY feature_curator_notes (source_id, term_id, note) FROM STDIN") as copy:
+                        for note in record.get('curator-note', []):
+                            copy.write_row((source_id, path_id, note))
 
                     # Descriptive attributes (phenotype type → values)
                     descriptive_phenotypes = record.get('descriptive-phenotypes', {})
