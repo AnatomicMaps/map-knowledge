@@ -206,18 +206,19 @@ def makelpesrdf() -> tuple:
         # TODO could add expected cardinality here if needed
         results = []
         def _add(obj):
-            results.append(tuple(NAMESPACES.curie(str(m)) for m in obj.members()) if isinstance(obj, IntersectionOf) else tuple([NAMESPACES.curie(str(obj))]))
-            collect.append((predicate, obj))
+            result = tuple(NAMESPACES.curie(str(m)) for m in obj.members()) if isinstance(obj, IntersectionOf) else tuple([NAMESPACES.curie(str(obj))])
+            if result not in results:
+                results.append(result)
+                collect.append((predicate, obj))
 
-        for obj in (objs:=list(neuron.getObjects(predicate))):
+        for obj in neuron.getObjects(predicate):
             _add(obj)
-        if not objs:
-            predicate_curie = NAMESPACES.curie(str(predicate))
-            for p in neuron.pes:
-                if hasattr(p, 'pes'):
-                    for p2 in p.pes:
-                        if NAMESPACES.curie(str(p2.e)) == predicate_curie:
-                            _add(p2.p)
+        predicate_curie = NAMESPACES.curie(str(predicate))
+        for p in neuron.pes:
+            if hasattr(p, 'pes'):
+                for p2 in p.pes:
+                    if NAMESPACES.curie(str(p2.e)) == predicate_curie:
+                        _add(p2.p)
         return results
 
     def lrdf(neuron, predicate):
@@ -251,6 +252,11 @@ def for_composer(n, cull=False) -> dict[str, Any]:
 #=================================================
     lpes, lrdf, collect = makelpesrdf()
     _po = n.partialOrder()
+    if NAMESPACES.curie(str(n.id_)) =='npokb:926':
+        descriptive_phenotypes = {NAMESPACES.curie(str(pn)): lpes(n, pn) for pn in DESCRIPTIVE_PHENOTYPES}
+        print(f'.  {str(n.id_)}: ', descriptive_phenotypes)
+        print(lpes(n, 'ilxtr:hasNucleicAcidExpressionPhenotype'))
+
     fc = dict(
         id = NAMESPACES.curie(str(n.id_)),
         label = str(n.origLabel),
