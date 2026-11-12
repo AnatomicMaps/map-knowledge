@@ -252,10 +252,6 @@ def for_composer(n, cull=False) -> dict[str, Any]:
 #=================================================
     lpes, lrdf, collect = makelpesrdf()
     _po = n.partialOrder()
-    if NAMESPACES.curie(str(n.id_)) =='npokb:926':
-        descriptive_phenotypes = {NAMESPACES.curie(str(pn)): lpes(n, pn) for pn in DESCRIPTIVE_PHENOTYPES}
-        print(f'.  {str(n.id_)}: ', descriptive_phenotypes)
-        print(lpes(n, 'ilxtr:hasNucleicAcidExpressionPhenotype'))
 
     fc = dict(
         id = NAMESPACES.curie(str(n.id_)),
