@@ -101,6 +101,12 @@ NPO_COMPOSER_TTLS = [
 LABEL_TTLS = [
     '../../npo',
     '../../sparc-community-terms',
+    '../../phenotypes',
+    '../../phenotype-indicators'
+]
+
+PRECISION_TTLS = [
+    'precision'
 ]
 
 GEN_NEURONS_PATH = 'ttl/generated/neurons/'
@@ -115,6 +121,33 @@ NODE_PHENOTYPES = [
     ilxtr.hasAxonLeadingToSensorySubcellularElementIn,
     ilxtr.hasAxonLocatedIn,
     ilxtr.hasDendriteLocatedIn,
+]
+
+DESCRIPTIVE_PHENOTYPES = [
+    ilxtr.hasPhenotype,
+    ilxtr.hasMolecularPhenotype,
+    ilxtr.hasProjectionPhenotype,
+    ilxtr.hasFunctionalCircuitRolePhenotype,
+    ilxtr.hasThresholdPhenotype,
+    ilxtr.hasNeurotransmitterPhenotype,
+    ilxtr.hasFunctionalPhenotype,
+    ilxtr.hasAxonPhenotype,
+    ilxtr.hasSomaPhenotype,
+    ilxtr.hasAxonSensorySubcellularStructure,
+    ilxtr.hasExpressionPhenotype,
+    ilxtr.hasNucleicAcidExpressionPhenotype,
+    ilxtr.hasDriverExpressionPhenotype,
+    ilxtr.hasDriverExpressionConstitutivePhenotype,
+    ilxtr.hasDriverExpressionInducedPhenotype,
+    ilxtr.hasReporterExpressionPhenotype,
+    ilxtr.hasProteinExpressionPhenotype,
+    ilxtr.hasAdaptationPhenotype,
+    ilxtr.isMemberOfCircuit,
+]
+
+EXPRESSION_LEVELS = [
+    ilxtr.HigherExpression,
+    ilxtr.LowerExpression,
 ]
 
 #===============================================================================
@@ -171,11 +204,22 @@ def makelpesrdf() -> tuple:
     def lpes(neuron, predicate):
         """ get predicates from python bags """
         # TODO could add expected cardinality here if needed
-        return [
-            tuple(NAMESPACES.curie(str(m)) for m in o.members()) if isinstance(o, IntersectionOf) else tuple([NAMESPACES.curie(str(o))])
-            for o in neuron.getObjects(predicate)
-            if not collect.append((predicate, o))
-        ]
+        results = []
+        def _add(obj):
+            result = tuple(NAMESPACES.curie(str(m)) for m in obj.members()) if isinstance(obj, IntersectionOf) else tuple([NAMESPACES.curie(str(obj))])
+            if result not in results:
+                results.append(result)
+                collect.append((predicate, obj))
+
+        for obj in neuron.getObjects(predicate):
+            _add(obj)
+        predicate_curie = NAMESPACES.curie(str(predicate))
+        for p in neuron.pes:
+            if hasattr(p, 'pes'):
+                for p2 in p.pes:
+                    if NAMESPACES.curie(str(p2.e)) == predicate_curie:
+                        _add(p2.p)
+        return results
 
     def lrdf(neuron, predicate):
         """ get predicates from graph """
@@ -208,10 +252,12 @@ def for_composer(n, cull=False) -> dict[str, Any]:
 #=================================================
     lpes, lrdf, collect = makelpesrdf()
     _po = n.partialOrder()
+
     fc = dict(
         id = NAMESPACES.curie(str(n.id_)),
         label = str(n.origLabel),
         long_label = str(pref_labels[0]) if (pref_labels:=lrdf(n, skos.prefLabel)) else str(n.origLabel),
+        # Connectivity ---
         origin = lpes(n, ilxtr.hasSomaLocatedIn),
         dest = (
             # XXX looking at this there seems to be a fault assumption that
@@ -231,8 +277,8 @@ def for_composer(n, cull=False) -> dict[str, Any]:
         ),
         #laterality = lpes(n, ilxtr.hasLaterality),  # left/right tricky ?
         projection_lateralities = [l[0] for l in lpes(n, ilxtr.hasProjectionLaterality)],
-        soma_phenotypes =     [l[0] for l in lpes(n, ilxtr.hasSomaPhenotype)],
-        axon_phenotypes =     [l[0] for l in lpes(n, ilxtr.hasAxonPhenotype)],
+        forward_connections = [fc[0] for fc in lpes(n, ilxtr.hasForwardConnectionPhenotype)],
+        # Common metadata ---
         species =            [l[0] for l in lpes(n, ilxtr.hasInstanceInTaxon)],
         sex =                [NAMESPACES.curie(str(p.p)) for p in n if not isinstance(p, NegPhenotype) and p.e==ilxtr.hasBiologicalSex and not collect.append((ilxtr.hasBiologicalSex , p.p))],
         neg_sex =            [NAMESPACES.curie(str(p.p)) for p in n if isinstance(p, NegPhenotype) and p.e==ilxtr.hasBiologicalSex and not collect.append((ilxtr.hasBiologicalSex , p.p))],
@@ -240,20 +286,21 @@ def for_composer(n, cull=False) -> dict[str, Any]:
         phenotype =          [l[0] for l in lpes(n, ilxtr.hasAnatomicalSystemPhenotype)],  # current meaning of composer phenotype
         anatomical_system =  [l[0] for l in lpes(n, ilxtr.hasAnatomicalSystemPhenotype)],
         # there are a number of dimensions that we aren't converting right now
-        dont_know_fcrp =     lpes(n, ilxtr.hasFunctionalCircuitRolePhenotype),
-        other_phenotype =    [l[0] for l in lpes(n, ilxtr.hasPhenotype)]
-                           + [l[0] for l in lpes(n, ilxtr.hasMolecularPhenotype)]
-                           + [l[0] for l in lpes(n, ilxtr.hasProjectionPhenotype)],
-        forward_connections = [fc[0] for fc in lpes(n, ilxtr.hasForwardConnectionPhenotype)],
-        node_phenotypes = {NAMESPACES.curie(str(pn)): lpes(n, pn) for pn in NODE_PHENOTYPES},
-        member_of_circuits = [l[0] for l in lpes(n, ilxtr.isMemberOfCircuit)],
+        descriptive_phenotypes = {NAMESPACES.curie(str(pn)): lpes(n, pn) for pn in DESCRIPTIVE_PHENOTYPES},
+        node_phenotypes =    {NAMESPACES.curie(str(pn)): lpes(n, pn) for pn in NODE_PHENOTYPES},
 
-        # direct references from individual individual neurons
+        # Subclass relationships (e.g. EMP:subClassOf npokb:915)
+        subclass_of =        lrdf(n, rdflib.URIRef('http://uri.interlex.org/temp/uris/subClassOf')),
+        # Corresponding cell types in other papers (directed, many-to-many, may cross species)
+        maps_to =            lrdf(n, rdflib.URIRef('http://uri.interlex.org/temp/uris/mapsTo')),
+
+        # Provenance ---
         provenance =      lrdf(n, ilxtr.literatureCitation),
         sentence_number = lrdf(n, ilxtr.sentenceNumber),
         note_alert =      lrdf(n, ilxtr.alertNote),
         expert_consultants = lrdf(n, ilxtr.expertConsultant),
         curator_note =       lrdf(n, ilxtr.curatorNote),
+        data_citation =      lrdf(n, ilxtr.dataCitation),
         # XXX provenance from ApiNATOMY models as a whole is not ingested
         # right now because composer lacks support for 1:n from neuron to
         # prov, (or rather lacks prov collections) and because it attaches
@@ -266,12 +313,18 @@ def for_composer(n, cull=False) -> dict[str, Any]:
         # unlikely to be encountered for real neurons any time soon
         _ignore = [l[0] for l in lpes(n, ilxtr.hasClassificationPhenotype)],  # used to ensure we account for all phenotypes
     )
-    npo = set((p.e, p.p) for p in n.pes)
+    npo = set(
+        item for p in n.pes
+        for item in (
+            ((p2.e, p2.p) for p2 in p.pes) if hasattr(p, 'pes')
+            else ((p.e, p.p),)
+        )
+    )
     cpo = set(collect)
     unaccounted_pos = npo - cpo
     if unaccounted_pos:
         log.warning(
-            str([n.id_, [[n.in_graph.namespace_manager.qname(e) for e in pos]
+            str([n.id_, [[tuple(m for m in e) if type(e)==tuple or type(e)==frozenset else e for e in pos]
                      for pos in unaccounted_pos]]))
     return {k:v for k, v in fc.items() if v} if cull else fc
 
@@ -344,6 +397,7 @@ class Npo:
         self.__npo_release = self.__check_npo_release(npo_release)
         self.__rdf_graph = OntGraph()
         self.__composer_neurons = {}
+        self.__composer_cells = {}
         self.__neuron_knowledge = {}
         self.__npo_terms: dict[rdflib.URIRef, KnowledgeDict] = {}
 
@@ -353,6 +407,8 @@ class Npo:
         for neuron_id in self.__composer_neurons.keys():
             self.__get_term_knowledge(neuron_id)
             self.__get_neuron_knowledge(neuron_id)
+        for cell_id in self.__composer_cells.keys():
+            self.__get_term_knowledge(cell_id)
 
     @property
     def connectivity_models(self) -> list[str]:
@@ -362,7 +418,19 @@ class Npo:
     @property
     def connectivity_paths(self) -> list[str]:
     #=========================================
-        return [path for path in self.__composer_neurons.keys()]
+        return list(self.__composer_neurons.keys())
+
+    @property
+    def cell_models(self) -> list[str]:
+    #==========================================
+        return list({v.get('class') for v in self.__composer_cells.values()})
+
+    @property
+    def cell_precisions(self) -> list[str]:
+    #=================================
+        # return list({id for id, v in self.__composer_cells.items() if len(v.get('subclass_of', []))>0})
+        # will be updated when available
+        return list(self.__composer_cells.keys())
 
     @property
     def release(self) -> str:
@@ -464,14 +532,21 @@ class Npo:
                 [self.__rdf_graph.add((s, ilxtr.hasExistingId, o))
                     for s, o in ori.graph.subject_objects(ilxtr.hasExistingId)]
 
+        # Load types
+        type_graph = load_path_knowledge_ttls(PRECISION_TTLS)
+        self.__rdf_graph += type_graph if type_graph is not None else OntGraph()
+
         config = Config('npo-connectivity')
         config.load_existing(self.__rdf_graph)
 
         for neuron in config.neurons():
             if not any(neuron.id_.startswith(prefix) for prefix in EXCLUDED_PREFIXES):
-                composer_neuron = for_composer(neuron)
-                composer_neuron['class'] = type(neuron).__name__
-                self.__composer_neurons[composer_neuron['id']] = composer_neuron
+                kn = for_composer(neuron)
+                kn['class'] = type(neuron).__name__
+                if type(neuron).__name__ == 'NeuronPrecision':
+                    self.__composer_cells[kn['id']] = kn
+                else:
+                    self.__composer_neurons[kn['id']] = kn
 
     def __load_anatomical_types(self):
     #=================================
@@ -555,15 +630,54 @@ class Npo:
         }
         knowledge.update(self.__get_term_knowledge(entity))
 
-        # check if entity is a connectivity model
+        # check if entity is a connectivity model or cell precision model
+        models = None
         if entity in self.connectivity_models:
+            models = self.__composer_neurons
+        elif entity in self.cell_models:
+            models = self.__composer_cells
+        if models is not None:
+            entry_key = 'paths' if models is self.__composer_neurons else 'cells'
             if 'label' not in knowledge: knowledge['label'] = entity
-            knowledge['paths'] = [{'id': v['id'], 'models': v['id']}
-                                    for v in self.__composer_neurons.values()
-                                        if v['class'] == entity]
-            knowledge['references'] = []
+            knowledge[entry_key] = [{'id': v['id'], 'models': v['id']}
+                                    for v in models.values() if v['class'] == entity]
+            knowledge['references'] = [
+                r for v in models.values() if v['class'] == entity
+                for r in v['provenance']
+            ]
 
-        # check if entity is a connectivity path
+        # shared common attributes
+        def _add_common(kn: dict) -> None:
+            if 'label' not in knowledge:
+                knowledge['label'] = kn['label']
+            knowledge['long-label'] = kn['long_label']
+            if len(phenotype:=kn.get('phenotype', [])) > 0:
+                knowledge['phenotypes'] = phenotype
+            if len(taxon:=kn.get('species', [])) > 0:
+                knowledge['taxons'] = taxon
+            else:
+                knowledge['taxons'] = ['NCBITaxon:40674']      # Default to Mammalia
+            if len(sex:=kn.get('sex', [])) == 1:
+                knowledge['biologicalSex'] = sex[0]
+            if len(alert:=kn.get('note_alert', [])) > 0:
+                knowledge['alert'] = alert
+            if len(references:=kn.get('provenance', [])) > 0:
+                knowledge['references'] = references
+            if len(expert_consultants:=kn.get('expert_consultants', [])) > 0:
+                knowledge['expert-consultants'] = expert_consultants
+            if len(curator_note:=kn.get('curator_note', [])) > 0:
+                knowledge['curator-note'] = curator_note
+            if len(data_citation:=kn.get('data_citation', [])) > 0:
+                knowledge['data-citations'] = data_citation
+            if len(circuit:=kn.get('circuit_type', [])) > 0:
+                knowledge['phenotypes'] = knowledge.get('phenotypes', []) + circuit
+            knowledge['descriptive-phenotypes'] = {
+                k: v
+                for k, v in kn['descriptive_phenotypes'].items() if len(v) > 0
+            }
+            knowledge['class'] = kn['class']
+
+        # connectivity neuron path
         def get_nodes(target_nodes, nodes):
             return list({
                 tuple(node)
@@ -573,34 +687,11 @@ class Npo:
             })
 
         if (path_kn:=self.__get_neuron_knowledge(entity)) is not None:
-            if 'label' not in knowledge:
-                knowledge['label'] = path_kn['label']
-            knowledge['long-label'] = path_kn['long_label']
-            knowledge['connectivity'] = path_kn['connectivity']
-            if len(phenotype:=path_kn['phenotype']+path_kn['circuit_type']) > 0:
-                knowledge['phenotypes'] = phenotype
-            if len(taxon:=path_kn['species']) > 0:
-                knowledge['taxons'] = taxon
-            else:
-                knowledge['taxons'] = ['NCBITaxon:40674']      # Default to Mammalia
-            if len(sex:=path_kn['sex']) == 1:
-                knowledge['biologicalSex'] = sex[0]
-            if len(alert:=path_kn['note_alert']) > 0:
-                knowledge['alert'] = alert
-            if len(references:=path_kn['provenance']) > 0:
-                knowledge['references'] = references
-            if len(expert_consultants:=path_kn['expert_consultants']) > 0:
-                knowledge['expert-consultants'] = expert_consultants
-            if len(curator_note:=path_kn['curator_note']) > 0:
-                knowledge['curator-note'] = curator_note
-            if len(member_of_circuits:=path_kn['member_of_circuits']) > 0:
-                knowledge['member-of-circuits'] = member_of_circuits
+            _add_common(path_kn)
+
             if len(projection_lateralities:=path_kn.get('projection_lateralities', [])) > 0:
                 knowledge['projection-lateralities'] = projection_lateralities
-            if len(soma_phenotypes:=path_kn.get('soma_phenotypes', [])) > 0:
-                knowledge['soma-phenotypes'] = soma_phenotypes
-            if len(axon_phenotypes:=path_kn.get('axon_phenotypes', [])) > 0:
-                knowledge['axon-phenotypes'] = axon_phenotypes
+            knowledge['connectivity'] = path_kn['connectivity']
             knowledge['pathDisconnected'] = not path_kn.get('connected', False)
             knowledge['forward-connections'] = path_kn['forward_connections']
             all_nodes = {n for edge in path_kn['connectivity'] for n in edge}
@@ -634,6 +725,19 @@ class Npo:
                     for t in [node[0], *node[1]]
                 )
             ]
+
+        # precision cell path
+        elif (cell_kn:=self.__composer_cells.get(entity)) is not None:
+            _add_common(cell_kn)
+
+            knowledge['node-phenotypes'] = {
+                pn: [(loc[0], tuple([*loc[1:]])) for loc in locs]
+                for pn, locs in cell_kn['node_phenotypes'].items() if len(locs) > 0
+            }
+            knowledge['subclass-of'] = cell_kn.get('subclass_of', {})
+            if len(maps_to:=[t for t in cell_kn.get('maps_to', []) if not t.startswith('TEMP:MISSING')]) > 0:
+                knowledge['maps-to'] = maps_to
+
         return knowledge
 
 #===============================================================================

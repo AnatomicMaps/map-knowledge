@@ -385,6 +385,19 @@ class KnowledgeStore(KnowledgeBase):
             self.log.warning('NPO connectivity paths requested but no connection to NPO service')
         return []
 
+    def cell_types(self) -> list[str]:
+    #=========================================
+        """
+        Get URIs of cell types held in the NPO knowledge source.
+
+        :returns:   A list of cell types
+        """
+        if self.__npo_db is not None:
+            return self.__npo_db.cell_precisions
+        else:
+            self.log.warning('NPO cell types requested but no connection to NPO service')
+        return []
+
     def entities(self) -> list[str]:
     #===============================
         if self.__npo_db is not None:

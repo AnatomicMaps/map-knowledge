@@ -30,18 +30,18 @@ from tqdm import tqdm
 #===============================================================================
 
 from mapknowledge import clean_knowledge_source, NERVE_TYPE
+from mapknowledge.namespaces import NAMESPACES
+from mapknowledge.npo import (NODE_PHENOTYPES as NPO_NODE_PHENOTYPES,
+                               DESCRIPTIVE_PHENOTYPES as NPO_DESCRIPTIVE_PHENOTYPES,
+                               EXPRESSION_LEVELS as NPO_EXPRESSION_LEVELS)
+
 
 #===============================================================================
 #===============================================================================
 
-NODE_PHENOTYPES = [
-    'ilxtr:hasSomaLocatedIn',
-    'ilxtr:hasAxonPresynapticElementIn',
-    'ilxtr:hasAxonSensorySubcellularElementIn',
-    'ilxtr:hasAxonLeadingToSensorySubcellularElementIn',
-    'ilxtr:hasAxonLocatedIn',
-    'ilxtr:hasDendriteLocatedIn',
-]
+NODE_PHENOTYPES = [NAMESPACES.curie(str(p)) for p in NPO_NODE_PHENOTYPES]
+DESCRIPTIVE_PHENOTYPES = [NAMESPACES.curie(str(p)) for p in NPO_DESCRIPTIVE_PHENOTYPES]
+EXPRESSION_LEVELS = [NAMESPACES.curie(str(p)) for p in NPO_EXPRESSION_LEVELS]
 NODE_TYPES = [
    NERVE_TYPE,
 ]
@@ -110,11 +110,11 @@ class CompetencyDatabase:
                 try:
                     self.__delete_source_from_tables(cursor, knowledge.source)
                     if update_types:
-                        self.__update_anatomical_types(cursor)
+                        self.__update_anatomical_types(cursor, knowledge)
                     ## Use tqdm to show progress...
                     self.__update_knowledge_source(cursor, knowledge.source)
                     self.__update_features(cursor, knowledge)
-                    self.__update_connectivity(cursor, knowledge, show_progress)
+                    self.__update_paths(cursor, knowledge, show_progress)
 
                     self.__db.commit()
                 except:
@@ -138,19 +138,28 @@ class CompetencyDatabase:
         cursor.execute('DELETE FROM path_nodes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_types WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_expert_consultants WHERE source_id=%s', (source_id, ))
+        cursor.execute('DELETE FROM feature_curator_notes WHERE source_id=%s', (source_id, ))
+        cursor.execute('DELETE FROM feature_data_citations WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_relationship WHERE source_id=%s', (source_id, ))
+        cursor.execute('DELETE FROM feature_desc_attributes WHERE source_id=%s', (source_id, ))
         cursor.execute('DELETE FROM feature_terms WHERE source_id=%s', (source_id, ))
 
-    def __update_anatomical_types(self, cursor):
+    def __update_anatomical_types(self, cursor, knowledge: KnowledgeList):
     #===========================================
+        source_id = knowledge.source.source_id
         cursor.execute('''DELETE FROM anatomical_types at
                             WHERE (NOT EXISTS (SELECT 1 FROM feature_types ft WHERE at.type_id = ft.type_id))
-                              AND (NOT EXISTS (SELECT 1 FROM path_node_types pnt WHERE at.type_id = pnt.type_id))''')
+                              AND (NOT EXISTS (SELECT 1 FROM path_node_types pnt WHERE at.type_id = pnt.type_id))
+                              AND (NOT EXISTS (SELECT 1 FROM feature_desc_attributes fda WHERE at.type_id = fda.type_id))
+                              AND (NOT EXISTS (SELECT 1 FROM path_properties pp WHERE at.type_id = pp.type_id))''')
+        ANATOMICAL_TYPES = [type for record in knowledge.knowledge
+                            if source_id == clean_knowledge_source(record.get('source', ''))
+                            and (type:=record.get('class'))]
         cursor.executemany('INSERT INTO anatomical_types (type_id, label) VALUES (%s, %s) ON CONFLICT DO NOTHING',
-                           [(type, type) for type in NODE_PHENOTYPES + NODE_TYPES])
+                           [(type, type) for type in NODE_PHENOTYPES + NODE_TYPES + DESCRIPTIVE_PHENOTYPES + ANATOMICAL_TYPES])
 
-    def __update_connectivity(self, cursor, knowledge: KnowledgeList, show_progress=False):
-    #======================================================================================
+    def __update_paths(self, cursor, knowledge: KnowledgeList, show_progress=False):
+    #============================================================================
         source_id = knowledge.source.source_id
         if show_progress:
             progress_bar = tqdm(total=len(knowledge.knowledge),
@@ -159,9 +168,14 @@ class CompetencyDatabase:
         else:
             progress_bar = None
 
+        # TODO: remove this line if sckan is fixed
+        path_list = [record['id'] for record in knowledge.knowledge if record.get('connectivity') is not None]
+
         for record in knowledge.knowledge:
             if source_id == clean_knowledge_source(record.get('source', '')):
-                if (connectivity := record.get('connectivity')) is not None:
+                if ((connectivity := record.get('connectivity', []))
+                    or record.get('descriptive-phenotypes')
+                    or record.get('node-phenotypes')):
                     path_id = record['id']
 
                     # Taxons
@@ -185,9 +199,12 @@ class CompetencyDatabase:
                             copy.write_row((source_id, path_id, evidence_id))
 
                     # Nodes
-                    nodes = set(json.dumps(node) for (node, _) in connectivity) | set(json.dumps(node) for (_, node) in connectivity)
+                    if connectivity:
+                        nodes = set(json.dumps(node) for (node, _) in connectivity) | set(json.dumps(node) for (_, node) in connectivity)
+                    else:
+                        nodes = set(json.dumps(loc) for locs in record.get('node-phenotypes', {}).values() for loc in locs)
                     cursor.executemany('INSERT INTO path_nodes (source_id, path_id, node_id) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING',
-                                       ((source_id, path_id, node,) for node in nodes))
+                                        ((source_id, path_id, node,) for node in nodes))
 
                     # Node features
                     node_features = [ (source_id, path_id, node, feature)
@@ -209,7 +226,16 @@ class CompetencyDatabase:
                             copy.write_row(row)
 
                     # Forward connections
-                    forward_connections = [(source_id, path_id, forward_path) for forward_path in record.get('forward-connections', [])]
+                    # TODO: remove this line if sckan is fixed
+                    forward_connections = []
+                    for forward_path in record.get('forward-connections', []):
+                        if forward_path not in path_list:
+                            import logging
+                            logging.warning(f'Invalid forward connections for {path_id}: {forward_path}')
+                            continue
+                        forward_connections.append((source_id, path_id, forward_path))
+                    # TODO: activate this line if sckan is fixed
+                    # forward_connections = [(source_id, path_id, forward_path) for forward_path in record.get('forward-connections', [])]
                     with cursor.copy("COPY path_forward_connections (source_id, path_id, forward_path_id) FROM STDIN") as copy:
                         for row in forward_connections:
                             copy.write_row(row)
@@ -232,8 +258,8 @@ class CompetencyDatabase:
                             copy.write_row((source_id, path_id, phenotype))
 
                     # General path properties
-                    cursor.execute('INSERT INTO path_properties (source_id, path_id, biological_sex, alert, disconnected) VALUES (%s, %s, %s, %s, %s)',
-                                       (source_id, path_id, record.get('biologicalSex'), record.get('alert'), record.get('pathDisconnected', False)))
+                    cursor.execute('INSERT INTO path_properties (source_id, path_id, biological_sex, alert, disconnected, type_id) VALUES (%s, %s, %s, %s, %s, %s)',
+                                       (source_id, path_id, record.get('biologicalSex'), record.get('alert'), record.get('pathDisconnected', False), record.get('class')))
 
                     # Node mappings
                     node_mappings = [ (source_id, path_id, json.dumps(node), knowledge.source.sckan_id, json.dumps(sckan_node))
@@ -250,6 +276,30 @@ class CompetencyDatabase:
                     with cursor.copy("COPY feature_expert_consultants (source_id, term_id, expert_id) FROM STDIN") as copy:
                         for expert in expert_consultants:
                             copy.write_row((source_id, path_id, expert))
+
+                    # Path curator notes
+                    with cursor.copy("COPY feature_curator_notes (source_id, term_id, note) FROM STDIN") as copy:
+                        for note in record.get('curator-note', []):
+                            copy.write_row((source_id, path_id, note))
+
+                    # Path data citations (dataset DOIs, stored as evidence)
+                    data_citations = record.get('data-citations', [])
+                    cursor.executemany('INSERT INTO evidence (evidence_id) VALUES (%s) ON CONFLICT DO NOTHING',
+                                       ((citation,) for citation in data_citations))
+                    with cursor.copy("COPY feature_data_citations (source_id, term_id, evidence_id) FROM STDIN") as copy:
+                        for citation in data_citations:
+                            copy.write_row((source_id, path_id, citation))
+
+                    # Descriptive attributes (phenotype type → values)
+                    descriptive_phenotypes = record.get('descriptive-phenotypes', {})
+                    with cursor.copy("COPY feature_desc_attributes (source_id, term_id, type_id, combination_id, feature_id) FROM STDIN") as copy:
+                        for ph, vals in descriptive_phenotypes.items():
+                            for val in vals:
+                                # Sort the combination, with any expression level last
+                                val = tuple(sorted(v for v in val if v not in EXPRESSION_LEVELS)
+                                          + sorted(v for v in val if v in EXPRESSION_LEVELS))
+                                for v in val:
+                                    copy.write_row((source_id, path_id, ph, str(val), v))
 
             if progress_bar is not None:
                 progress_bar.update(1)
@@ -273,11 +323,18 @@ class CompetencyDatabase:
                         copy.write_row([source_id, record['id'], term_type])
 
         # Feature relationships
+        term_ids = {record['id'] for record in knowledge.knowledge
+                        if source_id == clean_knowledge_source(record.get('source', ''))}
         with cursor.copy("COPY feature_relationship (source_id, feature_0, feature_1, relationship) FROM STDIN") as copy:
             for record in knowledge.knowledge:
                 if source_id == clean_knowledge_source(record.get('source', '')):
                     for descendant in record.get('descendants', []):
                         copy.write_row([source_id, descendant, record['id'], 'descendant-ancestor'])
+                    for superclass in record.get('subclass-of', []):
+                        copy.write_row([source_id, record['id'], superclass, 'subclass-of'])
+                    for target in record.get('maps-to', []):
+                        if target in term_ids:      # feature_1 must be a term of this source
+                            copy.write_row([source_id, record['id'], target, 'maps-to'])
 
     def __update_knowledge_source(self, cursor, source: KnowledgeSource):
     #====================================================================
@@ -290,3 +347,4 @@ class CompetencyDatabase:
 
 #===============================================================================
 #===============================================================================
+

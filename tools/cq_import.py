@@ -44,7 +44,7 @@ COMPETENCY_HOST = os.environ.get('COMPETENCY_HOST', 'localhost:5432')
 def cq_import(knowledge: KnowledgeList):
 #=======================================
     competency_db = CompetencyDatabase(COMPETENCY_USER, COMPETENCY_HOST, COMPETENCY_DATABASE)
-    competency_db.import_knowledge(knowledge, True)
+    competency_db.import_knowledge(knowledge, True, True)
 
 #===============================================================================
 #===============================================================================

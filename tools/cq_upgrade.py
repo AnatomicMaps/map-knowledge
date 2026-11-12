@@ -18,7 +18,7 @@ COMPETENCY_USER = os.environ.get('COMPETENCY_USER')
 COMPETENCY_HOST = os.environ.get('COMPETENCY_HOST', 'localhost:5432')
 COMPETENCY_OWNER = COMPETENCY_USER.split(':', 1)[0] if COMPETENCY_USER else None
 
-COMPETENCY_SCHEMA_VERSION = '1.1'
+COMPETENCY_SCHEMA_VERSION = '1.2'
 COMPETENCY_SCHEMA_VERSION_KEY = 'schema_version'
 
 def _quoted_identifier(value: str) -> str:
@@ -73,6 +73,46 @@ SCHEMA_1_1_FOREIGN_KEYS = [
     ('feature_expert_consultants', 'fec_expert_fk', 'FOREIGN KEY (expert_id) REFERENCES expert_consultants(expert_id)'),
 ]
 
+SCHEMA_1_2_TABLES = [
+    'CREATE TABLE IF NOT EXISTS feature_desc_attributes ('
+    'source_id character varying NOT NULL, '
+    'term_id character varying NOT NULL, '
+    'type_id character varying NOT NULL, '
+    'combination_id character varying NOT NULL, '
+    'feature_id character varying NOT NULL'
+    ')',
+    'ALTER TABLE path_properties ADD COLUMN IF NOT EXISTS type_id character varying',
+    'CREATE TABLE IF NOT EXISTS feature_curator_notes ('
+    'source_id character varying NOT NULL, '
+    'term_id character varying NOT NULL, '
+    'note text NOT NULL'
+    ')',
+    'CREATE TABLE IF NOT EXISTS feature_data_citations ('
+    'source_id character varying NOT NULL, '
+    'term_id character varying NOT NULL, '
+    'evidence_id character varying NOT NULL'
+    ')',
+]
+
+SCHEMA_1_2_OWNERS = [] if not COMPETENCY_OWNER else [
+    f'ALTER TABLE feature_desc_attributes OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
+    f'ALTER TABLE feature_curator_notes OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
+    f'ALTER TABLE feature_data_citations OWNER TO {_quoted_identifier(COMPETENCY_OWNER)}',
+]
+
+SCHEMA_1_2_FOREIGN_KEYS = [
+    ('feature_desc_attributes', 'fda_source_fk', 'FOREIGN KEY (source_id) REFERENCES knowledge_sources(source_id)'),
+    ('feature_desc_attributes', 'fda_term_fk', 'FOREIGN KEY (source_id, term_id) REFERENCES feature_terms(source_id, term_id)'),
+    ('feature_desc_attributes', 'fda_type_fk', 'FOREIGN KEY (type_id) REFERENCES anatomical_types(type_id)'),
+    ('feature_desc_attributes', 'fda_feat_fk', 'FOREIGN KEY (source_id, feature_id) REFERENCES feature_terms(source_id, term_id)'),
+    ('path_properties', 'pp_type_fk', 'FOREIGN KEY (type_id) REFERENCES anatomical_types(type_id)'),
+    ('feature_curator_notes', 'fcn_source_fk', 'FOREIGN KEY (source_id) REFERENCES knowledge_sources(source_id)'),
+    ('feature_curator_notes', 'fcn_term_fk', 'FOREIGN KEY (source_id, term_id) REFERENCES feature_terms(source_id, term_id)'),
+    ('feature_data_citations', 'fdc_source_fk', 'FOREIGN KEY (source_id) REFERENCES knowledge_sources(source_id)'),
+    ('feature_data_citations', 'fdc_term_fk', 'FOREIGN KEY (source_id, term_id) REFERENCES feature_terms(source_id, term_id)'),
+    ('feature_data_citations', 'fdc_evidence_fk', 'FOREIGN KEY (evidence_id) REFERENCES evidence(evidence_id)'),
+]
+
 COMPETENCY_SCHEMA_UPGRADES: dict[str | None, tuple[str, list[str]]] = {
     None: (
         '1.1',
@@ -84,6 +124,16 @@ COMPETENCY_SCHEMA_UPGRADES: dict[str | None, tuple[str, list[str]]] = {
             "ON CONFLICT (name) DO UPDATE SET value = excluded.value",
         ],
     ),
+    '1.1': (
+        '1.2',
+        [
+            *SCHEMA_1_2_TABLES,
+            *SCHEMA_1_2_OWNERS,
+            *[_fk_constraint_sql(*fk) for fk in SCHEMA_1_2_FOREIGN_KEYS],
+            "INSERT INTO metadata (name, value) VALUES ('schema_version', '1.2') "
+            "ON CONFLICT (name) DO UPDATE SET value = excluded.value",
+        ]
+    )
 }
 
 #===============================================================================
